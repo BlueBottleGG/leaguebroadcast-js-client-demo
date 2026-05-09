@@ -1,15 +1,15 @@
 # Pull Request: Fix item cooldown animation
 
 ## Base
-Comparado contra `main` de `LB JS Demo`.
+Compared against `main` from `LB JS Demo`.
 
-## Cambios
-- Clampa la fraccion de cooldown entre 0 y 1.
-- Corrige la rotacion de la aguja para que avance con el progreso real.
-- Elimina la linea fija duplicada del temporizador circular.
+## Changes
+- Clamps the cooldown fraction between 0 and 1.
+- Fixes the needle rotation so it advances according to the actual progress.
+- Removes the duplicated fixed line from the circular timer.
 
-## Motivo
-El estado final evita rotaciones incorrectas y overlays visuales raros cuando el cooldown queda fuera de rango.
+## Reason
+The final state prevents incorrect rotations and odd visual overlays when the cooldown goes out of range.
 
-## Verificacion
-- Pendiente ejecutar `npm run type-check` en esta rama aislada.
+## Verification
+- Pending running `npm run type-check` on this isolated branch.
