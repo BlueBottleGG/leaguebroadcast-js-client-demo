@@ -21,27 +21,25 @@ const currentPlayerIndex = ref(0);
 const rotationInterval = 10000; // Rotate every 10 seconds
 let intervalId: number | null = null;
 
-const isCurrentPlayerDead = computed(() => {
-    const player = playersOnTeam.value[currentPlayerIndex.value];
+function isPlayerDeadByIndex(index: number): boolean {
+    const player = playersOnTeam.value[index];
     if (!player) return false;
 
-    // We match by name and tag line rather than index because streamer mode players
-    // aren't included in the player list from the client but are in the overlay data.
     const playerName = `${player.alias}#${player.tag}`;
 
-    // Prefer scoreboard data when available.
     const scoreboardTeam = props.scoreboard?.teams[props.team - 1];
     if (scoreboardTeam) {
         const playerInfo = scoreboardTeam.players.find(p => p.name === playerName);
         return isPlayerDead(playerInfo, gameTime.value);
     }
 
-    // Fall back to teamfight data.
     const teamfightEntry = props.teamfight?.damageDealt.find(
         e => e.team === props.team && e.name === playerName
     );
     return getRemaining(teamfightEntry?.respawnAt, gameTime.value) > 0;
-})
+}
+
+const isCurrentPlayerDead = computed(() => isPlayerDeadByIndex(currentPlayerIndex.value))
 onMounted(async () => {
     try {
         const game = await client.api.game.getCurrentGame();
@@ -93,13 +91,25 @@ onUnmounted(() => {
 <template>
     <div v-if="show" id="player-scoreboard-camera" class="bg-black/55 flex flex-col">
         <div class="relative flex-1 grow overflow-hidden">
-            <img v-if="playersOnTeam[currentPlayerIndex]?.iconUri" :style="{
-                filter: isCurrentPlayerDead ? 'grayscale(1)' : 'grayscale(0)',
-                transition: 'filter 0.5s ease'
-            }" :src="client.getCacheUrl(playersOnTeam[currentPlayerIndex]?.iconUri)" alt="Player icon"
+            <!-- Preload iframes only for players that have a video stream -->
+            <template v-for="(player, index) in playersOnTeam" :key="player.alias + '#' + player.tag">
+                <iframe v-if="player.videoStreamUrl" :style="{
+                    filter: isPlayerDeadByIndex(index) ? 'grayscale(1)' : 'grayscale(0)',
+                    transition: 'filter 0.5s ease',
+                    visibility: index === currentPlayerIndex ? 'visible' : 'hidden',
+                    zIndex: index === currentPlayerIndex ? 1 : 0
+                }" :src="player.videoStreamUrl + '&cover'" allow="autoplay; camera; microphone; fullscreen"
+                    class="absolute top-0 left-0 w-full h-full rounded-t border-0" />
+            </template>
+            <!-- Fallback image for the current player if they have no video stream -->
+            <img v-if="playersOnTeam[currentPlayerIndex] && !playersOnTeam[currentPlayerIndex]?.videoStreamUrl && playersOnTeam[currentPlayerIndex]?.iconUri"
+                :style="{
+                    filter: isCurrentPlayerDead ? 'grayscale(1)' : 'grayscale(0)',
+                    transition: 'filter 0.5s ease'
+                }" :src="client.getCacheUrl(playersOnTeam[currentPlayerIndex]?.iconUri)" alt="Player icon"
                 class="absolute top-0 left-0 w-full h-full object-cover object-top rounded-t" @error="handleImageError"
                 @load="handleImageLoad" />
-            <div v-else class="w-full h-full flex items-center justify-center bg-black">
+            <div v-if="!playersOnTeam.length" class="w-full h-full flex items-center justify-center bg-black">
             </div>
         </div>
         <span class="player-name">{{ playersOnTeam[currentPlayerIndex]?.alias }}</span>
