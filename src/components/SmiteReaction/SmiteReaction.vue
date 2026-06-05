@@ -98,6 +98,7 @@ const ringGradient = computed(() => {
 
 onUnmounted(() => {
     unsub()
+    if (smite.value) smite.value = undefined
     if (smiteRevealTimer) clearTimeout(smiteRevealTimer)
 })
 
