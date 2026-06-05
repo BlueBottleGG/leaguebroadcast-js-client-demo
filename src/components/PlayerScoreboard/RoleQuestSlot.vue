@@ -16,8 +16,8 @@ const progressPercent = computed(() => {
     }
 
     //current at 1 index, max at 2 index
-    const current = props.item.stats[1] ?? 0;
-    const max = props.item.stats[2] ?? 1;
+    const current = props.item.stats[0] ?? 0;
+    const max = props.item.stats[1] ?? 1;
     const value = Math.min(100, Math.max(0, (current / max) * 100));
     if (value < 10) {
         return 0

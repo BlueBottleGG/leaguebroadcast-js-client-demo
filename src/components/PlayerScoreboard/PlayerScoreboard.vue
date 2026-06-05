@@ -7,7 +7,7 @@ import GoldDiff from './GoldDiff.vue';
 import ItemBuyNotification from './ItemBuyNotification.vue';
 import { useClient } from '@/client';
 import { onUnmounted } from 'vue';
-import { useNotificationQueue, type PlayerNotification } from '@/composables/useNotificationQueue';
+import { useNotificationQueue } from '@/composables/useNotificationQueue';
 
 
 const scoreboard = useIngameSelector((s) => s.gameData.scoreboardBottom);
@@ -76,8 +76,6 @@ onUnmounted(() => {
 <template>
     <Transition name="slide-down">
         <div id="player-scoreboard" v-if="scoreboard && tabs">
-            <!-- <PlayerCamera show :team="Team.Order" :scoreboard="scoreboard"
-                class="border rounded-t-sm border-r-0.5 border-b-0 border-white/55" /> -->
             <div class="player-grid">
                 <div v-for="i in 5" :key="i" class="grid-item">
                     <PlayerItems style="grid-area: order-items"
@@ -114,8 +112,6 @@ onUnmounted(() => {
                         :exiting="itemBuyQueue.isExiting('Chaos', i - 1)" mirror />
                 </div>
             </div>
-            <!-- <PlayerCamera show :team="Team.Chaos" :scoreboard="scoreboard"
-                class="border rounded-t-sm border-l-0.5 border-b-0 border-white/55" /> -->
         </div>
     </Transition>
 </template>
@@ -124,7 +120,6 @@ onUnmounted(() => {
 <style lang="css" scoped>
 #player-scoreboard {
     display: grid;
-    /* grid-template-columns: 176px 1fr 176px; */
     grid-template-columns: 1fr;
     grid-template-rows: 1fr;
 }

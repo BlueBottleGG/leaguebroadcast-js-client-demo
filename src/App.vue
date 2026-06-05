@@ -15,6 +15,7 @@ import CompactTeamfight from "./components/Teamfight/CompactTeamfight.vue";
 import SmiteReaction from "./components/SmiteReaction/SmiteReaction.vue";
 import PlayerCameras from "./components/PlayerCameras/PlayerCameras.vue";
 import KillFeed from "./components/KillFeed/KillFeed.vue";
+import ObjectivePowerPlayContainer from "./components/ObjectivePowerPlay/ObjectivePowerPlayContainer.vue";
 
 const debugVisible = ref(true);
 const baronTimer = useIngameSelector((state) => state.gameData.baronPitTimer);
@@ -34,6 +35,7 @@ const gameTime = useIngameSelector((state) => state.gameData.gameTime);
     </div>
     <MinimapFrame class="overlay-minimap" />
     <LFrame class="overlay-lframe" />
+    <ObjectivePowerPlayContainer />
 
     <!-- Basic Tier only features -->
     <SkinDisplay class="overlay-skindisplay" :team="Team.Order" />
@@ -74,6 +76,10 @@ const gameTime = useIngameSelector((state) => state.gameData.gameTime);
   * {
     --blue-team-color: oklch(0.6231 0.188 259.81);
     --red-team-color: oklch(0.6231 0.188 28.31);
+    --baron-color: oklch(0.581767 0.275459 301.0491);
+    --elder-color: oklch(0.8741 0.1329 177.69);
+    --baron-color-subtle: oklch(0.581767 0.275459 301.0491 / 0.3);
+    --elder-color-subtle: oklch(0.8741 0.1329 177.69 / 0.3);
   }
 }
 
@@ -100,6 +106,20 @@ body {
   top: 10px;
   left: 50%;
   transform: translateX(-50%);
+}
+
+.overlay-powerplay {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+}
+
+.powerplay-order {
+  transform: translateX(calc(-100% - 410px));
+}
+
+.powerplay-chaos {
+  transform: translateX(410px);
 }
 
 .overlay-bottom {

@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import logoUrl from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
 import type { smiteReactionResult } from '@bluebottle_gg/league-broadcast-client';
 import { useClient } from '@/client';
-import { useIngameSelector } from '@/composables/useIngame';
 
 const _logoPreload = new window.Image()
 _logoPreload.src = logoUrl
@@ -11,7 +10,9 @@ _logoPreload.src = logoUrl
 const client = useClient();
 const smite = ref<smiteReactionResult | undefined>(undefined)
 const unsub = client.onIngameEvents({
-    /* TODO: listen for smite events here */
+    onSmiteReactionEvent(event) {
+        smite.value = event
+    }
 })
 function formatReactionTime(seconds: number): string {
     if (Math.abs(seconds) >= 1) {
@@ -95,12 +96,17 @@ const ringGradient = computed(() => {
     return `conic-gradient(${color} 0% ${pct}%, rgba(255,255,255,0.08) ${pct}% 100%)`
 })
 
+onUnmounted(() => {
+    unsub()
+    if (smiteRevealTimer) clearTimeout(smiteRevealTimer)
+})
+
 </script>
 
 <template>
-    <div class="absolute pointer-events-none select-none z-40" style="top: 112px; right: 128px; font-family: Arial;">
+    <div class="absolute pointer-events-none select-none z-40" style="top: 94px; right: 296px; font-family: Arial;">
         <Transition name="smite-pop" appear>
-            <div v-if="smite" class="flex flex-col items-center scale-200"
+            <div v-if="smite" class="flex flex-col items-center"
                 style="background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;">
                 <div class="flex flex-row items-center gap-3 px-4 py-3 min-w-64">
                     <!-- Reaction ring with champion portrait -->

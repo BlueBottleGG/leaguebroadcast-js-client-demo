@@ -111,7 +111,7 @@ const resourceColor = computed(() => {
                     :img="client.getCacheUrl(summonerTwo?.assets?.iconAsset)" show-timer skilled />
             </div>
         </div>
-        <div class="relative w-full h-full p-0.5" :class="buffBorderClass">
+        <div class="relative w-full h-full p-0.5 overflow-hidden" :class="buffBorderClass">
             <img id="player-champion-icon" :src="client.getCacheUrl(scoreboardPlayer?.champion?.squareImg)" />
             <span class="shutdown-text"> {{ shutdown }}</span>
             <span class="level-text" :style="{
@@ -187,6 +187,7 @@ const resourceColor = computed(() => {
     position: absolute;
     bottom: -5px;
     text-shadow: 0 0 2px rgba(0, 0, 0, 1);
+    z-index: 10;
 }
 
 .shutdown-text {
@@ -281,37 +282,63 @@ const resourceColor = computed(() => {
 }
 
 .buff-baron::before {
-    border: 3px solid rgba(155, 48, 255, 0.4);
-    animation: baron-pulse 1.5s ease-in-out infinite;
+    border: 3px solid var(--baron-color);
+    animation: baron-pulse 3s ease-in-out infinite;
 }
 
+
 .buff-elder::before {
-    border: 3px solid #c0c0c0;
+    border: 3px solid var(--elder-color);
+    animation: elder-pulse 3s ease-in-out infinite;
 }
 
 .buff-both::before {
-    inset: -1px;
-    background: conic-gradient(#9b30ff, #c0c0c0, #9b30ff, #c0c0c0, #9b30ff);
-    animation: swirl 2s linear infinite;
-    mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
-    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+    inset: 0;
+    background: conic-gradient(from var(--swirl-angle), var(--baron-color), var(--elder-color), var(--baron-color), var(--elder-color), var(--baron-color));
+    animation: swirl 6s linear infinite;
+    mask:
+        linear-gradient(to bottom, #000 3px, transparent 0, transparent calc(100% - 3px), #000 calc(100% - 3px)),
+        linear-gradient(to right, #000 3px, transparent 0, transparent calc(100% - 3px), #000 calc(100% - 3px));
+    mask-composite: add;
+    -webkit-mask:
+        linear-gradient(to bottom, #000 3px, transparent 0, transparent calc(100% - 3px), #000 calc(100% - 3px)),
+        linear-gradient(to right, #000 3px, transparent 0, transparent calc(100% - 3px), #000 calc(100% - 3px));
+    -webkit-mask-composite: source-over;
+}
+
+@property --swirl-angle {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
 }
 
 @keyframes baron-pulse {
 
     0%,
     100% {
-        border-color: rgba(155, 48, 255, 0.3);
+        border-color: oklch(from var(--baron-color) l c h / 0.3);
     }
 
     50% {
-        border-color: rgba(155, 48, 255, 1);
+        border-color: oklch(from var(--baron-color) l c h / 1);
+    }
+}
+
+@keyframes elder-pulse {
+
+    0%,
+    100% {
+        border-color: oklch(from var(--elder-color) l c h / 0.3);
+    }
+
+    50% {
+        border-color: oklch(from var(--elder-color) l c h / 1);
     }
 }
 
 @keyframes swirl {
     to {
-        transform: rotate(360deg);
+        --swirl-angle: 360deg;
     }
 }
 </style>
