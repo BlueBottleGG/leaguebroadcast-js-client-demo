@@ -12,7 +12,7 @@ export const ClientKey: InjectionKey<LeagueBroadcastClient> = Symbol("lbc");
 
 /** Default config — connects to a local LeagueBroadcast server. */
 export const defaultClientConfig: LeagueBroadcastClientConfig = {
-  host: "localhost",
+  host: window.location.hostname,
   port: 58869,
   autoConnect: false, // we connect explicitly after the app mounts
 };

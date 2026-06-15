@@ -5,27 +5,50 @@ import { ingameDamageGraphData, ingameScoreboardBottomData, teamMember, type Tea
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useIngameSelector } from '@/composables/useIngame';
 
-const props = defineProps<{
+// 1. Added camerasOnly to the props
+const props = withDefaults(defineProps<{
     show: boolean
     team: Team
     scoreboard?: ingameScoreboardBottomData
     teamfight?: ingameDamageGraphData
-}>()
+    camerasOnly?: boolean
+}>(), {
+    camerasOnly: false
+});
 
 const client = useClient();
 const gameTime = useIngameSelector((s) => s.gameData.gameTime);
 const playersOnTeam = ref<teamMember[]>([]);
 
-//rotate through players in x seconds intervals.
-const currentPlayerIndex = ref(0);
-const rotationInterval = 10000; // Rotate every 10 seconds
+const rotationCounter = ref(0);
+const rotationInterval = 10000;
 let intervalId: number | null = null;
 
-function isPlayerDeadByIndex(index: number): boolean {
-    const player = playersOnTeam.value[index];
-    if (!player) return false;
+function getPlayerKey(player: teamMember | null | undefined): string {
+    if (!player) return '';
+    return `${player.alias}#${player.tag}`;
+}
 
-    const playerName = `${player.alias}#${player.tag}`;
+// 2. The core logic change: Filter the roster based on the prop
+const displayRoster = computed(() => {
+    if (props.camerasOnly) {
+        return playersOnTeam.value.filter(p => p.videoStreamUrl);
+    }
+    return playersOnTeam.value;
+});
+
+// 3. Current player safely selects from the active roster
+const currentPlayer = computed(() => {
+    if (displayRoster.value.length === 0) return null;
+    const index = rotationCounter.value % displayRoster.value.length;
+    return displayRoster.value[index];
+});
+
+// Update the dead check to use the currentPlayer object directly
+function isCurrentPlayerDeadCheck(): boolean {
+    if (!currentPlayer.value) return false;
+
+    const playerName = `${currentPlayer.value.alias}#${currentPlayer.value.tag}`;
 
     const scoreboardTeam = props.scoreboard?.teams[props.team - 1];
     if (scoreboardTeam) {
@@ -39,80 +62,87 @@ function isPlayerDeadByIndex(index: number): boolean {
     return getRemaining(teamfightEntry?.respawnAt, gameTime.value) > 0;
 }
 
-const isCurrentPlayerDead = computed(() => isPlayerDeadByIndex(currentPlayerIndex.value))
+const isCurrentPlayerDead = computed(() => isCurrentPlayerDeadCheck());
+
+function getIframeSrc(player: teamMember): string {
+    // For better performance and not crash OBS/vMix, we can request a lower bitrate stream for the preview
+    //return `${player.videoStreamUrl}&cover&noaudio`;
+    return `${player.videoStreamUrl}&cover&videobitrate=500&height=360&noaudio`;
+}
+
 onMounted(async () => {
     try {
         const game = await client.api.game.getCurrentGame();
-        if (!game) {
-            return;
-        }
+        if (!game) return;
+
         const playersInGame = await client.api.game.getPlayersInGame(game.gameId);
-        playersOnTeam.value = playersInGame[props.team]
-        if (props.show) {
-            //preload all player icons to prevent delay when rotating through them. 
-            // create a list of promises that resolve when the image is loaded or fails to load, then wait for all promises to resolve before starting the rotation.
-            const preloadPromises = playersOnTeam.value.map(player => {
-                return new Promise<void>((resolve) => {
-                    if (!player.iconUri) {
-                        resolve();
-                        return;
-                    }
-                    const img = new Image();
-                    img.src = client.getCacheUrl(player.iconUri);
-                    img.onload = () => resolve();
-                    img.onerror = () => resolve();
-                });
+        playersOnTeam.value = playersInGame[props.team] ?? [];
+
+        // Preload fallback icons
+        const preloadPromises = playersOnTeam.value.map(player => {
+            return new Promise<void>((resolve) => {
+                if (!player.iconUri) {
+                    resolve();
+                    return;
+                }
+                const img = new Image();
+                img.src = client.getCacheUrl(player.iconUri);
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
             });
-            await Promise.all(preloadPromises);
+        });
+        await Promise.all(preloadPromises);
 
-            intervalId = window.setInterval(() => {
-                currentPlayerIndex.value = (currentPlayerIndex.value + 1) % playersOnTeam.value.length;
-            }, rotationInterval);
-        } else {
-            if (intervalId) {
-                clearInterval(intervalId);
-                intervalId = null;
+        // Start Rotation
+        intervalId = window.setInterval(() => {
+            if (displayRoster.value.length > 0) {
+                rotationCounter.value++;
             }
-        }
-    } catch (error) {
-        // Ignore
-    }
+        }, rotationInterval);
 
-})
+    } catch (error) {
+        console.error('[PlayerCamera] Failed to load camera data:', error);
+    }
+});
 
 onUnmounted(() => {
     if (intervalId) {
         clearInterval(intervalId);
         intervalId = null;
     }
-})
+});
 </script>
 
 <template>
-    <div v-if="show" id="player-scoreboard-camera" class="bg-black/55 flex flex-col">
-        <div class="relative flex-1 grow overflow-hidden">
-            <!-- Preload iframes only for players that have a video stream -->
-            <template v-for="(player, index) in playersOnTeam" :key="player.alias + '#' + player.tag">
+    <div id="player-scoreboard-camera" class="bg-black/55 flex flex-col transition-opacity duration-300"
+        :class="show ? 'opacity-100' : 'opacity-0 pointer-events-none'">
+
+        <div class="relative flex-1 grow overflow-hidden bg-black rounded-t">
+
+            <template v-for="player in playersOnTeam" :key="getPlayerKey(player)">
                 <iframe v-if="player.videoStreamUrl" :style="{
-                    filter: isPlayerDeadByIndex(index) ? 'grayscale(1)' : 'grayscale(0)',
-                    transition: 'filter 0.5s ease',
-                    visibility: index === currentPlayerIndex ? 'visible' : 'hidden',
-                    zIndex: index === currentPlayerIndex ? 1 : 0
-                }" :src="player.videoStreamUrl + '&cover'" allow="autoplay; camera; microphone; fullscreen"
-                    class="absolute top-0 left-0 w-full h-full rounded-t border-0" />
+                    opacity: getPlayerKey(player) === getPlayerKey(currentPlayer) ? 1 : 0,
+                    zIndex: getPlayerKey(player) === getPlayerKey(currentPlayer) ? 10 : 1,
+                    transition: 'opacity 0.5s ease'
+                }" :src="getIframeSrc(player)" allow="autoplay; camera; microphone; fullscreen"
+                    class="absolute inset-0 w-full h-full rounded-t border-0" />
             </template>
-            <!-- Fallback image for the current player if they have no video stream -->
-            <img v-if="playersOnTeam[currentPlayerIndex] && !playersOnTeam[currentPlayerIndex]?.videoStreamUrl && playersOnTeam[currentPlayerIndex]?.iconUri"
-                :style="{
-                    filter: isCurrentPlayerDead ? 'grayscale(1)' : 'grayscale(0)',
-                    transition: 'filter 0.5s ease'
-                }" :src="client.getCacheUrl(playersOnTeam[currentPlayerIndex]?.iconUri)" alt="Player icon"
-                class="absolute top-0 left-0 w-full h-full object-cover object-top rounded-t" @error="handleImageError"
+
+            <img v-if="currentPlayer && !currentPlayer.videoStreamUrl && currentPlayer.iconUri" :style="{
+                filter: isCurrentPlayerDead ? 'grayscale(1)' : 'grayscale(0)',
+                transition: 'filter 0.5s ease'
+            }" :src="client.getCacheUrl(currentPlayer.iconUri)" alt="Player icon"
+                class="absolute inset-0 w-full h-full object-cover object-top rounded-t z-10" @error="handleImageError"
                 @load="handleImageLoad" />
-            <div v-if="!playersOnTeam.length" class="w-full h-full flex items-center justify-center bg-black">
-            </div>
+
+            <div v-if="isCurrentPlayerDead"
+                class="absolute inset-0 bg-black/50 z-20 rounded-t pointer-events-none transition-colors duration-500" />
+
+            <div v-if="displayRoster.length === 0"
+                class="absolute inset-0 flex items-center justify-center bg-black z-30"></div>
         </div>
-        <span class="player-name">{{ playersOnTeam[currentPlayerIndex]?.alias }}</span>
+
+        <span class="player-name">{{ currentPlayer?.displayName || currentPlayer?.alias || '' }}</span>
     </div>
 </template>
 
@@ -129,8 +159,7 @@ onUnmounted(() => {
     font-size: 22px;
     line-height: 22px;
     text-align: center;
-    font-weight: bolder;
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

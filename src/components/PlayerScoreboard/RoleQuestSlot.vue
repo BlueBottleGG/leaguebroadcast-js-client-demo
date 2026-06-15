@@ -11,7 +11,7 @@ defineOptions({ inheritAttrs: false })
 const client = useClient();
 
 const progressPercent = computed(() => {
-    if (!props.item || !props.item.stats || props.item.stats.length < 3) {
+    if (!props.item || !props.item.stats || props.item.stats.length < 2) {
         return 0;
     }
 

@@ -51,17 +51,17 @@ const leadingTeam = computed(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-left: 1px solid rgba(255, 255, 255, 0.55);
-    border-right: 1px solid rgba(255, 255, 255, 0.55);
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
     overflow: visible;
     /* Add subtle drop shadow for better visibility */
     text-shadow: 0 0 2px rgba(0, 0, 0, 1);
 }
 
 .gold-value {
-    font-family: "Bebas Neue", sans-serif;
-    font-size: 24px;
-    line-height: 24px;
+    font-weight: 800;
+    font-size: 20px;
+    line-height: 20px;
     color: white;
     z-index: 1;
 }

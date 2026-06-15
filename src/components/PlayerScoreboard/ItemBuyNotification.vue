@@ -66,13 +66,13 @@ defineProps<{
 .item-icon {
     width: 28px;
     height: 28px;
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    border: 1px solid var(--border-color);
     border-radius: 2px;
     flex-shrink: 0;
 }
 
 .item-name {
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
     font-size: 24px;
     color: white;
     text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);

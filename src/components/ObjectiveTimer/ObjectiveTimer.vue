@@ -108,7 +108,8 @@ const objectiveIcon = computed(() => {
                 <img :src="objectiveIcon" alt="Objective Icon">
             </div>
 
-            <div class="respawn-timer-text-container" :style="{ maxWidth: respawnTimeRemaining ? '8rem' : '0px' }">
+            <div class="respawn-timer-text-container"
+                :style="{ width: (respawnTimeRemaining !== undefined && respawnTimeRemaining > 0) ? '5rem' : '0px' }">
                 <p class="respawn-timer-text">
                     {{ formattedRespawnTime }}
                 </p>
@@ -143,7 +144,7 @@ const objectiveIcon = computed(() => {
 
 .respawn-timer-text-container {
     overflow: hidden;
-    transition: max-width 0.3s ease-in-out;
+    transition: width 0.3s ease-in-out;
 
 }
 
@@ -151,7 +152,7 @@ const objectiveIcon = computed(() => {
     font-size: 24px;
     font-weight: bold;
     font-weight: bolder;
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
     padding-left: 10px;
     padding-right: 6px;
     white-space: nowrap;

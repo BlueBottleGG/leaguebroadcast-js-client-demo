@@ -23,12 +23,31 @@ const props = defineProps<{
     isMocking?: boolean
 }>()
 
+function isQuestItem(item: { id: number }) {
+    if (!item) {
+        return false;
+    }
+
+    if (item.id >= 1090 && item.id <= 1095) {
+        return true;
+    }
+
+    if (item.id >= 1200 && item.id <= 1250) {
+        return true;
+    }
+
+    return false;
+}
+
 function playerHasQuestComplete(player: ingameScoreboardBottomPlayerData) {
     if (props.isMocking) {
         return player.respawnAt
     }
     const roleItem = getRoleQuest(player)
-    if (!roleItem || !roleItem.stats || roleItem.stats.length < 3) {
+    if (!roleItem || !isQuestItem(roleItem)) {
+        return true;
+    }
+    if (!roleItem.stats || roleItem.stats.length < 2) {
         return false;
     }
     if (roleItem.id === 1220) {
@@ -36,8 +55,7 @@ function playerHasQuestComplete(player: ingameScoreboardBottomPlayerData) {
     }
     const current = roleItem.stats[0] ?? 0;
     const max = roleItem.stats[1] ?? 1;
-    const value = Math.min(100, Math.max(0, (current / max) * 100));
-    return value >= 100;
+    return current >= max;
 }
 
 function allQuestsComplete() {

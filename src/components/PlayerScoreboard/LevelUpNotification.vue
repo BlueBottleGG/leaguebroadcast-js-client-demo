@@ -55,14 +55,14 @@ defineProps<{
 }
 
 .level-up-label {
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
     font-size: 10px;
     color: white;
     letter-spacing: 1px;
 }
 
 .level-up-number {
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
     font-size: 22px;
     color: white;
     text-shadow: 0 0 6px rgba(0, 0, 0, 0.6);

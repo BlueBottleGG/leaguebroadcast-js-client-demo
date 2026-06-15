@@ -59,7 +59,8 @@ watch(goldDiff, (diff) => {
 </script>
 
 <template>
-    <div class="w-full h-full flex items-center py-1 px-1 gap-4" :class="mirror ? 'flex-row-reverse' : 'flex-row'">
+    <div class="w-full h-full flex items-center justify-center  gap-4 py-1"
+        :class="mirror ? 'flex-row-reverse pr-1' : 'flex-row pl-1'">
         <MatchScore class="self-stretch" :best-of="bestOf"
             :fill-color="mirror ? 'var(--red-team-color)' : 'var(--blue-team-color)'" :wins="team.seriesScore.wins"
             :mirror="mirror" />
@@ -68,7 +69,7 @@ watch(goldDiff, (diff) => {
         <div class="flex flex-col" :style="{
             textAlign: mirror ? 'right' : 'left'
         }">
-            <p class="font-extrabold text-xl" :style="{
+            <p class="font-extrabold text-2xl" :style="{
                 'color': mirror ? 'var(--red-team-color)' : 'var(--blue-team-color)'
             }">{{ team.teamTag }}</p>
             <p class="font-bold overflow-clip whitespace-nowrap text-ellipsis text-sm">{{ team.infoText }}</p>
@@ -84,12 +85,12 @@ watch(goldDiff, (diff) => {
                     'left': mirror ? 'auto' : '40px',
                     color: 'white',
                 }">
-                    <span class="spcing text-stretch-vertical capitalize">{{
+                    <span class="spacing text-stretch-vertical capitalize">{{
                         goldDiffText }}</span>
                 </div>
             </FadeTransition>
         </div>
-        <span class="text-3xl font-extrabold spcing tracking-tight text-stretch-vertical capitalize"
+        <span class="text-4xl translate-y-1 font-extrabold spacing tracking-tight text-stretch-vertical capitalize"
             :class="mirror ? 'mr-auto ml-2' : 'ml-auto mr-2 '">{{ team.kills
             }}</span>
 
@@ -98,17 +99,6 @@ watch(goldDiff, (diff) => {
 
 <style lang="css" scoped>
 .text-stretch-vertical {
-    font-family: 'Bebas Neue';
-    display: inline-block;
-    -webkit-transform: scale(1, 1.5);
-    /* Safari and Chrome */
-    -moz-transform: scale(1, 1.5);
-    /* Firefox */
-    -ms-transform: scale(1, 1.5);
-    /* IE 9 */
-    -o-transform: scale(1, 1.5);
-    /* Opera */
-    transform: scale(1, 1.5);
-    /* Standard syntax */
+    font-weight: 800;
 }
 </style>

@@ -113,7 +113,7 @@ const dateTimeNowString = new Date().toISOString();
     height: 80px;
     background-color: rgba(0, 0, 0, 0.9);
     border-radius: 8px;
-    border: 1px solid #ffffff55;
+    border: 1px solid var(--border-color);
     box-sizing: border-box;
     overflow: hidden;
     display: grid;
@@ -171,17 +171,6 @@ const dateTimeNowString = new Date().toISOString();
 }
 
 .text-stretch-vertical {
-    font-family: 'Bebas Neue';
-    display: inline-block;
-    -webkit-transform: scale(1, 1.5);
-    /* Safari and Chrome */
-    -moz-transform: scale(1, 1.5);
-    /* Firefox */
-    -ms-transform: scale(1, 1.5);
-    /* IE 9 */
-    -o-transform: scale(1, 1.5);
-    /* Opera */
-    transform: scale(1, 1.5);
-    /* Standard syntax */
+    font-weight: 800;
 }
 </style>

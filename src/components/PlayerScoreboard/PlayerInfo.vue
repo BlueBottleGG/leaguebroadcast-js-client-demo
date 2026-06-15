@@ -115,11 +115,19 @@ const resourceColor = computed(() => {
             <img id="player-champion-icon" :src="client.getCacheUrl(scoreboardPlayer?.champion?.squareImg)" />
             <span class="shutdown-text"> {{ shutdown }}</span>
             <span class="level-text" :style="{
+                fontSize: '16px',
                 textAlign: mirror ? 'left' : 'right',
                 right: mirror ? 'auto' : '0',
                 left: mirror ? '0' : 'auto',
                 color: isDead ? '#E2B793' : 'white',
             }"> {{ scoreboardPlayer?.level }}</span>
+            <span v-if="tabPlayer?.stacksData" class="level-text" :style="{
+                fontSize: '16px',
+                textAlign: mirror ? 'right' : 'left',
+                right: mirror ? '0' : 'auto',
+                left: mirror ? 'auto' : '0',
+                color: isDead ? '#E2B793' : 'white',
+            }"> {{ Math.round(tabPlayer.stacksData) }}</span>
             <div v-if="isDead" class="absolute flex top-0 left-0 h-full w-full justify-center items-center text-center">
                 <p class="death-timer-text">{{ respawnTimeRemaining }}</p>
             </div>
@@ -160,13 +168,17 @@ const resourceColor = computed(() => {
 </template>
 
 <style lang="css" scoped>
+* {
+    font-size: 16px;
+}
+
 #player-info-container {
     display: grid;
     grid-template-columns: 24px 1fr 3fr 1fr;
     grid-template-rows: minmax(0, 1fr);
     gap: 0px;
     padding: 4px;
-    border-left: 1px solid rgba(255, 255, 255, 0.55);
+    border-left: 1px solid var(--border-color);
     overflow: hidden;
 }
 
@@ -180,7 +192,7 @@ const resourceColor = computed(() => {
 
 #player-info-container span {
     width: 100%;
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
 }
 
 .level-text {
@@ -203,7 +215,7 @@ const resourceColor = computed(() => {
 .death-timer-text {
     color: white;
     font-size: 24px;
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
     text-shadow: 0 0 2px rgba(0, 0, 0, 1);
 }
 
@@ -238,7 +250,7 @@ const resourceColor = computed(() => {
     justify-content: center;
     gap: 2px;
     color: white;
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
     text-shadow: 0 0 2px rgba(0, 0, 0, 1);
     position: relative;
 }

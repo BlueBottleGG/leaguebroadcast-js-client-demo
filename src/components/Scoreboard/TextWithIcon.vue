@@ -17,24 +17,14 @@ const props = defineProps<{
     <div class="flex items-center" :class="mirror ? 'flex-row-reverse' : 'flex-row'">
         <img v-if="iconUrl" :src="iconUrl" alt="Icon" v-bind="attrs" class="w-auto object-contain"
             :class="mirror ? 'ml-2' : 'mr-2'" />
-        <span class="text-xl font-extrabold spcing tracking-tight text-stretch-vertical capitalize">{{ text }}</span>
+        <span class="text-2xl translate-y-1 font-extrabold spcing tracking-tight text-stretch-vertical capitalize">{{
+            text }}</span>
     </div>
 </template>
 
 
 <style lang="css" scoped>
 .text-stretch-vertical {
-    font-family: 'Bebas Neue';
-    display: inline-block;
-    -webkit-transform: scale(1, 1.5);
-    /* Safari and Chrome */
-    -moz-transform: scale(1, 1.5);
-    /* Firefox */
-    -ms-transform: scale(1, 1.5);
-    /* IE 9 */
-    -o-transform: scale(1, 1.5);
-    /* Opera */
-    transform: scale(1, 1.5);
-    /* Standard syntax */
+    font-weight: 800;
 }
 </style>

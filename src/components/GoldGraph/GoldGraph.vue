@@ -222,7 +222,7 @@ function formatGoldShort(val: number): string {
     const abs = Math.abs(val);
     const sign = val > 0 ? "+" : "-";
     if (abs >= 1000) return `${sign}${(abs / 1000).toFixed(1)}k`;
-    return `${sign}${abs}`;
+    return `${sign}${Math.round(abs)}`;
 }
 
 /** Scale labels: max gold advantage at top (blue) and bottom (red). */
@@ -459,13 +459,13 @@ const verticalLines = computed(() => {
     color: #ffffff;
     font-size: 24px;
     font-weight: 700;
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
 }
 
 .title-arrow {
     color: #ffffff;
     font-size: 48px;
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
 }
 
 .team-info-container {
@@ -500,7 +500,7 @@ const verticalLines = computed(() => {
     height: 100%;
     background-color: #12151a;
     color: #fff;
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
     user-select: none;
     overflow: hidden;
 }
@@ -514,12 +514,12 @@ const verticalLines = computed(() => {
 .pct-label {
     fill: rgba(255, 255, 255, 0.45);
     font-size: 9px;
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
 }
 
 .extrema-label {
     font-size: 8px;
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
     font-weight: 600;
     paint-order: stroke fill;
     stroke: #12151a;
@@ -538,7 +538,7 @@ const verticalLines = computed(() => {
 .time-label {
     fill: rgba(255, 255, 255, 1);
     font-size: 12px;
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
 }
 
 @keyframes drawSegment {

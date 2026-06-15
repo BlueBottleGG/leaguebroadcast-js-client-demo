@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { useGameState, useIngameConnected, useIsInGame } from '@/composables/useIngame';
+import { useIsInGame } from '@/composables/useIngame';
 import GameInfo from './GameInfo.vue';
 import SponsorRotation from './SponsorRotation.vue';
-import { computed } from 'vue';
-import { GameState } from '@bluebottle_gg/league-broadcast-client';
 import FadeTransition from '../../transitions/FadeTransition.vue';
 
 const isInGame = useIsInGame();

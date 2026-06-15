@@ -9,9 +9,19 @@ _logoPreload.src = logoUrl
 
 const client = useClient();
 const smite = ref<smiteReactionResult | undefined>(undefined)
+let smiteRemoveTimer: ReturnType<typeof setTimeout> | null = null
 const unsub = client.onIngameEvents({
     onSmiteReactionEvent(event) {
+        if (smite.value) {
+            // Prevent a new reaction if one is already shown.
+            // This should only happen when both objectives are done simultaneously, which is rare.
+            return;
+        }
         smite.value = event
+        if (smiteRemoveTimer) clearTimeout(smiteRemoveTimer)
+        smiteRemoveTimer = setTimeout(() => {
+            smite.value = undefined
+        }, 7000)
     }
 })
 function formatReactionTime(seconds: number): string {
@@ -42,6 +52,7 @@ const animatedReactionTime = ref(0)
 const showSecured = ref(false)
 let lastAnimatedTarget: number | null = null
 let smiteRevealTimer: ReturnType<typeof setTimeout> | null = null
+
 
 watch(smite, (newSmite) => {
     if (!newSmite) {
@@ -100,12 +111,13 @@ onUnmounted(() => {
     unsub()
     if (smite.value) smite.value = undefined
     if (smiteRevealTimer) clearTimeout(smiteRevealTimer)
+    if (smiteRemoveTimer) clearTimeout(smiteRemoveTimer)
 })
 
 </script>
 
 <template>
-    <div class="absolute pointer-events-none select-none z-40" style="top: 94px; right: 296px; font-family: Arial;">
+    <div class="absolute pointer-events-none select-none z-40" style="top: 94px; right: 296px; font-weight: 500;">
         <Transition name="smite-pop" appear>
             <div v-if="smite" class="flex flex-col items-center"
                 style="background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;">
@@ -126,16 +138,16 @@ onUnmounted(() => {
                     <!-- Text content -->
                     <div class="flex flex-col gap-0.5">
                         <span class="smite-title leading-none"
-                            style="font-family: Arial; font-weight: 700; font-size: 12px; text-align: left; color: rgba(255,255,255,0.85);">
+                            style=" font-weight: 800; font-size: 12px; text-align: left; color: rgba(255,255,255,0.85);">
                             SMITE REACTION
                         </span>
                         <span class="smite-time tabular-nums leading-none pt-1"
-                            :style="{ fontFamily: 'Arial', fontWeight: '700', fontSize: '24px', textAlign: 'left', color: reactionColor(animatedReactionTime) }">
+                            :style="{ fontWeight: '800', fontSize: '24px', textAlign: 'left', color: reactionColor(animatedReactionTime) }">
                             {{ formatReactionTime(animatedReactionTime) }}
                         </span>
                         <div class="smite-badges flex items-center gap-2 mt-0.5">
                             <span class="tracking-wider px-1.5 py-0.5" :style="{
-                                fontFamily: 'Arial', fontWeight: '700', fontSize: '11px', textAlign: 'center',
+                                fontWeight: '800', fontSize: '11px', textAlign: 'center',
                                 borderRadius: '2px',
                                 color: reactionColor(animatedReactionTime),
                                 background: reactionColor(animatedReactionTime) + '20',
@@ -143,7 +155,7 @@ onUnmounted(() => {
                                 {{ reactionLabel(animatedReactionTime) }}
                             </span>
                             <span class="tracking-wider px-1.5 py-0.5" :style="{
-                                fontFamily: 'Arial', fontWeight: '700', fontSize: '11px', textAlign: 'center',
+                                fontWeight: '800', fontSize: '11px', textAlign: 'center',
                                 borderRadius: '2px',
                                 color: smite.wasKillingBlow ? '#4CAF50' : '#E84057',
                                 background: smite.wasKillingBlow ? 'rgba(76,175,80,0.12)' : 'rgba(232,64,87,0.12)',
@@ -155,7 +167,7 @@ onUnmounted(() => {
                         </div>
                         <div class="smite-player flex items-center gap-3 mt-1">
                             <span class="tabular-nums"
-                                style="font-family: Arial; font-weight: 400; font-size: 12px; text-align: left; color: rgba(255,255,255,0.85);">
+                                style="font-weight: 500; font-size: 12px; text-align: left; color: rgba(255,255,255,0.85);">
                                 {{ junglerName }}
                             </span>
                         </div>
@@ -166,7 +178,7 @@ onUnmounted(() => {
                 <!-- Sponsor strip -->
                 <div class="smite-sponsor flex flex-row justify-end pb-2">
                     <p class="text-white font-bold pr-2"
-                        style="font-family: Arial; font-weight: 700; font-size: 8px; text-align: right; color: #ffffff; line-height: 20px;">
+                        style="font-weight: 500; font-size: 8px; text-align: right; color: #ffffff; line-height: 20px;">
                         POWERED BY</p>
                     <img :src="logoUrl" alt="LeagueBroadcast" style="height: 20px;" />
                 </div>

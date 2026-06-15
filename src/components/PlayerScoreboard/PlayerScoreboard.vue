@@ -126,7 +126,7 @@ onUnmounted(() => {
 
 .player-grid {
     background-color: rgba(0, 0, 0, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.55);
+    border: 1px solid var(--border-color);
     border-bottom: 0px;
     border-radius: 8px 8px 0 0;
     display: grid;
@@ -135,7 +135,7 @@ onUnmounted(() => {
 }
 
 .player-grid .grid-item {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.55);
+    border-bottom: 1px solid var(--border-color);
     overflow: hidden;
     min-height: 0;
     position: relative;

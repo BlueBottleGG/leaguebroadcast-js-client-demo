@@ -10,6 +10,7 @@ import { useIngameSelector } from "./composables/useIngame";
 import MinimapFrame from "./components/Minimap/MinimapFrame.vue";
 import LFrame from "./components/LFrame/LFrame.vue";
 import SkinDisplay from "./components/SidePanel/SkinDisplay.vue";
+import RuneDisplay from "./components/SidePanel/RuneDisplay.vue";
 import { Team } from "@bluebottle_gg/league-broadcast-client";
 import CompactTeamfight from "./components/Teamfight/CompactTeamfight.vue";
 import SmiteReaction from "./components/SmiteReaction/SmiteReaction.vue";
@@ -40,6 +41,8 @@ const gameTime = useIngameSelector((state) => state.gameData.gameTime);
     <!-- Basic Tier only features -->
     <SkinDisplay class="overlay-skindisplay" :team="Team.Order" />
     <SkinDisplay class="overlay-skindisplay" :team="Team.Chaos" mirror />
+    <RuneDisplay class="overlay-skindisplay" :team="Team.Order" />
+    <RuneDisplay class="overlay-skindisplay" :team="Team.Chaos" mirror />
     <SmiteReaction class="overlay-smitereaction" />
     <KillFeed class="overlay-killfeed" />
     <PlayerCameras class="overlay-playercameras" />
@@ -80,6 +83,7 @@ const gameTime = useIngameSelector((state) => state.gameData.gameTime);
     --elder-color: oklch(0.8741 0.1329 177.69);
     --baron-color-subtle: oklch(0.581767 0.275459 301.0491 / 0.3);
     --elder-color-subtle: oklch(0.8741 0.1329 177.69 / 0.3);
+    --border-color: oklch(1 0 0 / 0.55);
   }
 }
 
@@ -89,7 +93,7 @@ body {
   height: 1080px;
   overflow: hidden;
   background: transparent;
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-family: "Bebas Neue", system-ui, -apple-system, sans-serif;
   color: #e2e8f0;
 }
 </style>

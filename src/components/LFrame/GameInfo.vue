@@ -27,7 +27,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="flex flex-row justify-between items-center pl-2 pr-10 py-1 w-full h-full">
+    <div class="flex flex-row justify-between items-center pl-2.5 pr-10 py-1 w-full h-full">
         <BBLogo class="h-8" />
         <div class="info-text-slot">
             <FadeTransition mode="out-in">
@@ -49,9 +49,9 @@ onUnmounted(() => {
 .patch-text {
     grid-area: 1 / 1;
     color: white;
-    font-size: 24px;
+    font-size: 20px;
     line-height: 1;
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
     font-weight: bold;
     white-space: nowrap;
 }

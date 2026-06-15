@@ -140,7 +140,7 @@ function getStacks() {
     position: relative;
     display: inline-block;
     line-height: 0;
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
 }
 
 .item-slot-content .cooldown-clip {

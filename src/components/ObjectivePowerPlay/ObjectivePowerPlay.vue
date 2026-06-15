@@ -33,7 +33,7 @@ function formatGoldDiff(gold: number) {
     } else if (gold <= -1000) {
         return `${(gold / 1000).toFixed(1)}k g`
     } else {
-        return `${gold} g`
+        return `${Math.round(gold)} g`
     }
 }
 
@@ -159,7 +159,7 @@ watch(hasPowerPlay, (newVal, oldVal) => {
 
 .power-play-text {
     color: white;
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
     font-size: 20px;
     line-height: 28px;
     text-shadow: 0 0 2px rgba(0, 0, 0, 1);
@@ -174,7 +174,7 @@ watch(hasPowerPlay, (newVal, oldVal) => {
     align-items: center;
     flex-grow: 1;
     color: white;
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
     font-size: 16px;
     line-height: 16px;
     padding-left: 20px;
@@ -250,9 +250,8 @@ watch(hasPowerPlay, (newVal, oldVal) => {
 }
 
 .completion-gold {
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
     font-size: 28px;
-    font-weight: bold;
     line-height: 1;
     text-shadow: 0 2px 4px black;
     white-space: nowrap;

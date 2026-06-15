@@ -219,7 +219,7 @@ const xpPct = computed(() => {
 }
 
 .level-text {
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
     width: calc(100% / 3);
     background-color: black;
     display: flex;
@@ -230,7 +230,7 @@ const xpPct = computed(() => {
 .respawn-timer {
     position: absolute;
     color: white;
-    font-family: "Bebas Neue", sans-serif;
+    font-weight: 800;
     font-size: 32px;
     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
 }
