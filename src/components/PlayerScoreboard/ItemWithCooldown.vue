@@ -49,7 +49,7 @@ function getItemText(item: itemWithAsset): string {
 }
 
 function getCooldownOverlayStyle(item: itemWithAsset) {
-    const fraction = getItemCooldownFraction(item, gameTime.value);
+    const fraction = getClampedCooldownFraction(item);
     if (fraction >= 1) {
         return {}
     }
@@ -60,13 +60,17 @@ function getCooldownOverlayStyle(item: itemWithAsset) {
 }
 
 function getCooldownRotationStyle(item: itemWithAsset) {
-    const fraction = getItemCooldownFraction(item, gameTime.value);
+    const fraction = getClampedCooldownFraction(item);
     if (fraction >= 1) {
         return `rotate(0deg)`
     }
 
-    const rotation = 360 - (360 * fraction);
+    const rotation = 360 * fraction;
     return `rotate(${rotation}deg)`
+}
+
+function getClampedCooldownFraction(item: itemWithAsset) {
+    return Math.min(1, Math.max(0, getItemCooldownFraction(item, gameTime.value)))
 }
 
 function getVisionScore() {
@@ -103,7 +107,6 @@ function getStacks() {
             <div class="cooldown-clip" v-if="isItemOnCooldown(item, gameTime)">
                 <div :style="getCooldownOverlayStyle(item)" class="cooldown"></div>
                 <div class="cooldown-timer">
-                    <div class="cooldown-timer-line"></div>
                     <div class="cooldown-timer-hand" :style="{ 'transform': getCooldownRotationStyle(item) }">
                     </div>
                 </div>
@@ -193,15 +196,6 @@ function getStacks() {
     left: 0;
     width: 100%;
     height: 100%;
-}
-
-.item-slot-content .cooldown-timer-line {
-    position: absolute;
-    top: calc(50% - 70.7%);
-    left: calc(50% - 0.5px);
-    width: 1px;
-    height: 70.7%;
-    background-color: white;
 }
 
 .item-slot-content .cooldown-timer-hand {
