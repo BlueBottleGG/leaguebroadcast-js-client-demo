@@ -1,17 +1,17 @@
-import { defineStore } from "pinia";
+import { defineStore } from 'pinia'
 
 interface LogEntry {
-  id: number;
-  time: string;
-  text: string;
+  id: number
+  time: string
+  text: string
 }
 
 interface State {
-  entries: LogEntry[];
-  nextId: number;
+  entries: LogEntry[]
+  nextId: number
 }
 
-export const useEventLogStore = defineStore("eventLog", {
+export const useEventLogStore = defineStore('eventLog', {
   state: (): State => ({
     entries: [],
     nextId: 0,
@@ -22,11 +22,11 @@ export const useEventLogStore = defineStore("eventLog", {
         id: this.nextId++,
         time: new Date().toLocaleTimeString(),
         text,
-      });
+      })
     },
   },
 
   getters: {
     recentEntries: (state) => state.entries.slice(-10).reverse(),
   },
-});
+})
