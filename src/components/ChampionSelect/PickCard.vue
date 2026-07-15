@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { championSelectTeam, pickSlot } from '@bluebottle_gg/league-broadcast-client'
+import type {
+  championSelectTeam,
+  championStatistics,
+  pickSlot,
+} from '@bluebottle_gg/league-broadcast-client'
 import { useClient } from '@/client'
 import { resolvePlayerName } from '@/composables/useChampSelect'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
-import { isMockCsEnabled } from './mock/mockChampSelect'
 import TopIcon from '@/assets/lane/top-placeholder-cropped.svg?url'
 import JungleIcon from '@/assets/lane/jgl-placeholder-cropped.svg?url'
 import MidIcon from '@/assets/lane/mid-placeholder-cropped.svg?url'
@@ -24,8 +27,8 @@ const props = defineProps<{
   collapsed?: boolean
 }>()
 
-const client = isMockCsEnabled() ? null : useClient()
-const cacheUrl = (path?: string) => (client ? client.getCacheUrl(path) : (path ?? ''))
+const client = useClient()
+const cacheUrl = (path?: string) => client.getCacheUrl(path)
 
 const ROLE_ICONS = [TopIcon, JungleIcon, MidIcon, BotIcon, SupportIcon]
 const roleIcon = computed(() => ROLE_ICONS[Math.min(props.index, 4)])
@@ -42,11 +45,11 @@ const centerDist = computed(() =>
 const outerDist = computed(() => slotCount.value - 1 - centerDist.value)
 
 const playerName = computed(() => resolvePlayerName(props.teamData, props.slot.player, props.index))
-// names can run to 16 chars; shrink so they still fit an inactive card (~135px)
-const nameSize = computed(() => {
-  const len = playerName.value.length
-  return len <= 10 ? 26 : Math.max(16, Math.floor(260 / len))
-})
+// Name sizing is driven in CSS from the card's own width (container query) and
+// the name length, so it fits whatever width the card currently has — narrow
+// inactive/empty cards shrink the text instead of clipping it, wide active cards
+// let it grow up to the cap. We only need to expose the length here.
+const nameLen = computed(() => Math.max(playerName.value.length, 1))
 // Use the wide centered splash (same image the ban flash uses) for every state.
 // The narrow card crops it to a vertical band; the featured card lets it fill
 // the whole team area. One image means no reload/desync when a card expands.
@@ -56,15 +59,26 @@ const artSrc = computed(() => cacheUrl(props.slot.champion?.splashCenteredImg))
 const hovering = computed(() => props.slot.isActive && !!props.slot.champion)
 const locked = computed(() => !props.slot.isActive && !!props.slot.champion)
 
+type PickSlotWithStatisticsBySource = pickSlot & {
+  championStatisticsBySource?: {
+    tournament?: championStatistics
+  }
+}
+
 // champion statistics arrive from the backend shortly after a pick locks;
-// shown while the card is featured. Scale-agnostic: accepts 0–1 or 0–100.
+// shown while the card is featured. Scale-agnostic: accepts 0-1 or 0-100.
 function fmtPct(v: number): string {
   const pct = v <= 1 ? v * 100 : v
   return `${pct.toFixed(1)}%`
 }
+function hasPresence(s?: championStatistics): s is championStatistics {
+  return !!s && ((s.pickRate ?? 0) > 0 || (s.banRate ?? 0) > 0)
+}
 const stats = computed(() => {
-  const s = props.slot.championStatistics
-  if (!s) return null
+  const slot = props.slot as PickSlotWithStatisticsBySource
+  const s = slot.championStatisticsBySource?.tournament
+  if (!hasPresence(s)) return null
+
   return [
     { label: 'WIN RATE', value: fmtPct(s.winRate) },
     { label: 'PICK RATE', value: fmtPct(s.pickRate) },
@@ -110,7 +124,7 @@ const stats = computed(() => {
     <div class="scrim" />
     <div class="glow" />
 
-    <div class="name" :style="{ fontSize: `${nameSize}px` }">
+    <div class="name" :style="{ '--name-len': nameLen }">
       {{ playerName }}
     </div>
 
@@ -132,30 +146,67 @@ const stats = computed(() => {
   min-width: 0;
   height: 100%;
   overflow: hidden;
-  background: rgba(8, 12, 20, 0.6);
+  /* let the name size itself from this card's live width (see .name) */
+  container-type: inline-size;
+  /* opaque backing on every card, empty or not — the studio background must
+     never bleed through the pick strip. Corner rounding shows against the
+     strip's own dark backing, never against the studio background. */
+  background: rgb(0 0 0 / 0.78);
+  border-radius: 6px 6px 0 0;
   flex-grow: var(--grow-inactive, 1);
-  transition:
-    flex-grow 0.35s ease,
-    border-width 0.35s ease;
+  /* Base rule governs the *shrink back to normal* — most importantly the
+     featured card settling down after a lock. A longer, gently-decelerating
+     curve keeps that big collapse from feeling snappy. Grow-in states below
+     override this to stay quick. */
+  transition: flex-grow 0.7s cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+/* Growing INTO a bigger state (activate / feature / collapse) stays snappy —
+   only the return to normal uses the slow base curve above. */
+.pick-card.active,
+.pick-card.featured,
+.pick-card.collapsed {
+  transition: flex-grow 0.35s ease;
+}
+
 .pick-card.active {
   flex-grow: var(--grow-active, 1.6);
 }
 
-/* empty slot: no champion yet — let the game background show through instead of
-   a solid dark card (only the role placeholder + team edge remain) */
-.pick-card.empty {
-  background: transparent;
+/* team-colored edge on the center-facing side, drawn INSIDE the tile — a real
+   border would sit outside the art box and show the studio background through
+   its transparent lower half */
+.pick-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
 }
 
-/* team-colored divider edge */
-.pick-card.team-blue {
-  border-right: 4px solid transparent;
-  border-image: linear-gradient(to bottom, var(--blue-team-color), rgba(0, 0, 0, 0)) 1;
+.pick-card.team-blue::after {
+  right: 0;
+  background: linear-gradient(to bottom, var(--blue-team-color), rgba(0, 0, 0, 0));
 }
-.pick-card.team-red {
-  border-left: 4px solid transparent;
-  border-image: linear-gradient(to bottom, var(--red-team-color), rgba(0, 0, 0, 0)) 1;
+
+.pick-card.team-red::after {
+  left: 0;
+  background: linear-gradient(to bottom, var(--red-team-color), rgba(0, 0, 0, 0));
+}
+
+.pick-card.collapsed::after {
+  opacity: 0;
+}
+
+/* outermost cards sit flush against the screen edge — no rounding there
+   (classes set by the scene on the first blue / last red card) */
+.pick-card.edge-left {
+  border-top-left-radius: 0;
+}
+.pick-card.edge-right {
+  border-top-right-radius: 0;
 }
 
 /* pick lock-in: the locked card sweeps over the whole team area for a moment
@@ -163,15 +214,16 @@ const stats = computed(() => {
 .pick-card.featured {
   flex-grow: 200;
 }
+
 .pick-card.collapsed {
   flex-grow: 0.001;
-  border-width: 0;
 }
 
 .art-wrap {
   position: absolute;
   inset: 0;
 }
+
 .art {
   position: absolute;
   inset: 0;
@@ -184,10 +236,12 @@ const stats = computed(() => {
   transform-origin: 50% 0%;
   transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
+
 /* full color while hovered; a slow push-in that settles back on lock */
 .art.hovering {
   transform: scale(1.05);
 }
+
 /* featured: wide centered splash covering the whole team area — frame it like
    the ban flash (upper-center) rather than anchoring the zoom at the top edge */
 .art.featured {
@@ -201,10 +255,12 @@ const stats = computed(() => {
 .art-fade-leave-active {
   transition: opacity 0.3s ease;
 }
+
 .art-fade-enter-from,
 .art-fade-leave-to {
   opacity: 0;
 }
+
 .art-fade-leave-active {
   position: absolute;
   inset: 0;
@@ -220,6 +276,7 @@ const stats = computed(() => {
   justify-content: center;
   background: transparent;
 }
+
 .role-icon {
   width: 46px;
   height: 46px;
@@ -241,6 +298,7 @@ const stats = computed(() => {
     rgba(0, 0, 0, 0.35)
   );
 }
+
 /* bottom scrim for name legibility */
 .scrim {
   position: absolute;
@@ -249,7 +307,7 @@ const stats = computed(() => {
   bottom: 0;
   height: 55%;
   pointer-events: none;
-  background: linear-gradient(to top, rgba(4, 6, 10, 0.92), rgba(0, 0, 0, 0));
+  background: linear-gradient(to top, rgb(0 0 0 / 0.92), rgb(0 0 0 / 0));
 }
 
 .glow {
@@ -259,32 +317,40 @@ const stats = computed(() => {
   opacity: 0;
   transition: opacity 0.35s ease;
 }
+
 .pick-card.active .glow {
   opacity: 1;
   animation: card-pulse 3s ease-in-out infinite;
 }
+
 .team-blue.active .glow {
   box-shadow: inset 0 0 40px 4px var(--blue-team-color);
 }
+
 .team-red.active .glow {
   box-shadow: inset 0 0 40px 4px var(--red-team-color);
 }
+
 .pick-card.locked {
   animation: lock-flash 0.6s ease;
 }
+
 @keyframes card-pulse {
   0%,
   100% {
     opacity: 0.55;
   }
+
   50% {
     opacity: 1;
   }
 }
+
 @keyframes lock-flash {
   0% {
     filter: brightness(1.6);
   }
+
   100% {
     filter: brightness(1);
   }
@@ -301,24 +367,28 @@ const stats = computed(() => {
   gap: 44px;
   pointer-events: none;
 }
+
 .stat {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1px;
 }
+
 .stat-value {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 34px;
+  font-weight: 900;
+  font-size: 30px;
   line-height: 1;
-  color: #f1f5f9;
+  color: #ffffff;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
+
 .stat-label {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 12px;
-  letter-spacing: 3px;
-  color: #94a3b8;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--broadcast-accent) 55%, #ffffff);
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
 }
 
@@ -329,13 +399,16 @@ const stats = computed(() => {
     transform 0.3s ease;
   transition-delay: calc(0.3s + var(--si, 0) * 0.08s);
 }
+
 .stats-enter-from .stat {
   opacity: 0;
   transform: translateY(12px);
 }
+
 .stats-leave-active {
   transition: opacity 0.15s ease;
 }
+
 .stats-leave-to {
   opacity: 0;
 }
@@ -349,10 +422,17 @@ const stats = computed(() => {
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 26px;
-  letter-spacing: 1px;
-  color: #f1f5f9;
+  text-overflow: ellipsis;
+  font-weight: 800;
+  text-transform: uppercase;
+  /* Fit the name to the card: width budget per char is (card width / length);
+     the factor converts that budget into a font-size that fills the card
+     without overflowing — 1.3 is calibrated for Bebas Neue ExtraBold caps, which
+     run wider than a condensed display face. Capped at 21px so short names on
+     wide active cards don't balloon; floored at 11px so it stays legible. */
+  font-size: clamp(11px, calc(130cqw / var(--name-len, 10)), 21px);
+  letter-spacing: 0.5px;
+  color: #ffffff;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
 }
 </style>

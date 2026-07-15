@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onUnmounted, nextTick } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import {
   ResourceType,
   SpellSlotIndex,
@@ -10,6 +10,7 @@ import {
 } from '@bluebottle_gg/league-broadcast-client'
 import { useClient } from '@/client'
 import { useIngameSelector } from '@/composables/useIngame'
+import { playerDisplayName } from '@/utils/playerDisplayName'
 import ProgressBar from '../PlayerScoreboard/ProgressBar.vue'
 import StatCell from './StatCell.vue'
 import AbilitySlot from './AbilitySlot.vue'
@@ -22,6 +23,7 @@ const gameTime = useIngameSelector((s) => s.gameData.gameTime)
 // matched to the shown champion by display name (with a champion-asset fallback).
 const tabs = useIngameSelector((s) => s.gameData.tabs)
 const client = useClient()
+const detailPlayerName = computed(() => playerDisplayName(detail.value))
 
 const damageTracker = useDamageTracker()
 watch([detail, gameTime], ([d, t]) => damageTracker.update(d, t), { immediate: true })
@@ -143,6 +145,64 @@ function fmt(n: number | undefined): string {
   return Math.max(0, Math.round(n ?? 0)).toString()
 }
 
+// ---- Player name auto-fit ----
+// The player name must never be ellipsized (broadcast requirement — long names like
+// "STANKMEISTER" were being cut to "STANKM…"). Instead of clipping, we scale the name's font
+// down to fit the width the identity row grants it. The name span is the only shrinkable flex
+// item in the row, so clientWidth is the box it was granted and scrollWidth is the full text at
+// base size; their ratio yields the fit scale in a single measure-and-set pass.
+const nameEl = ref<HTMLSpanElement | null>(null)
+const hideChampionName = ref(false)
+const NAME_BASE_PX = 16
+const NAME_MIN_PX = 9
+// If fitting alongside the champion sub-name would squeeze the name below this size, drop the
+// sub-name and hand the name that freed width instead of shrinking further.
+const DROP_SUBNAME_BELOW_PX = 12
+
+// Scale the name font to fit its current box; returns the size it settled on.
+function scaleNameToFit(): number {
+  const el = nameEl.value
+  if (!el) return NAME_BASE_PX
+  el.style.fontSize = NAME_BASE_PX + 'px'
+  const avail = el.clientWidth
+  const needed = el.scrollWidth
+  if (avail > 0 && needed > avail) {
+    const size = Math.max(NAME_MIN_PX, Math.floor(NAME_BASE_PX * (avail / needed)))
+    el.style.fontSize = size + 'px'
+    return size
+  }
+  return NAME_BASE_PX
+}
+
+async function fitName() {
+  if (!nameEl.value) return
+  // Pass 1: measure with the champion sub-name shown.
+  hideChampionName.value = false
+  await nextTick()
+  const size = scaleNameToFit()
+  // Pass 2: on very long names, drop the sub-name and re-fit with the width it frees up.
+  // (Both passes complete within Vue's nextTick microtasks, before paint — no visible flicker.)
+  if (size < DROP_SUBNAME_BELOW_PX) {
+    hideChampionName.value = true
+    await nextTick()
+    scaleNameToFit()
+  }
+}
+
+// Re-fit whenever the shown player, their name, or the bounty badge (which competes for the
+// row's width) changes.
+watch(
+  () => [detailPlayerName.value, detail.value?.championAssets?.name, showBounty.value],
+  () => fitName(),
+  { immediate: true },
+)
+
+onMounted(() => {
+  fitName()
+  // Bebas Neue may still be loading on first paint; refit once its real glyph metrics land.
+  document.fonts?.ready.then(() => fitName())
+})
+
 function championIcon(d: championDetailData | null | undefined): string {
   return client.getCacheUrl(d?.championAssets?.squareImg)
 }
@@ -180,8 +240,11 @@ function runeIcon(rune: championRuneStat): string {
 
 <template>
   <Transition name="champion-detail-fade">
-    <div id="champion-detail-panel" v-if="detail"
-      :class="{ 'is-low-hp': isLowHp, 'is-burst': damageTracker.burstActive.value }">
+    <div
+      id="champion-detail-panel"
+      v-if="detail"
+      :class="{ 'is-low-hp': isLowHp, 'is-burst': damageTracker.burstActive.value }"
+    >
       <!-- Top: portrait + identity + bars -->
       <div class="top-row">
         <div class="portrait-wrap" :class="{ 'is-dead': isDead }">
@@ -194,24 +257,45 @@ function runeIcon(rune: championRuneStat): string {
 
         <div class="identity-and-bars">
           <div class="identity-row">
-            <span class="display-name">{{ detail.displayName }}</span>
-            <span class="champion-name">{{ detail.championAssets?.name ?? detail.name }}</span>
+            <span ref="nameEl" class="display-name">{{ detailPlayerName }}</span>
+            <span v-if="!hideChampionName" class="champion-name">{{
+              detail.championAssets?.name ?? detail.name
+            }}</span>
             <span v-if="showBounty" class="bounty-badge">{{ formattedBounty }}</span>
           </div>
 
           <div class="bars">
             <div class="bar-row">
-              <HealthBar class="hp-bar" :progress-pct="hpPct" :ghost-pct="damageTracker.ghostPct.value"
-                :heal-floor-pct="damageTracker.healFloorPct.value" :low-hp="isLowHp" :no-transition="snapBars" />
-              <span class="bar-text">{{ fmt(detail.health.current) }} / {{ fmt(detail.health.max) }}</span>
+              <HealthBar
+                class="hp-bar"
+                :progress-pct="hpPct"
+                :ghost-pct="damageTracker.ghostPct.value"
+                :heal-floor-pct="damageTracker.healFloorPct.value"
+                :low-hp="isLowHp"
+                :no-transition="snapBars"
+              />
+              <span class="bar-text"
+                >{{ fmt(detail.health.current) }} / {{ fmt(detail.health.max) }}</span
+              >
             </div>
             <div class="bar-row">
-              <ProgressBar class="resource-bar" :fill-color="resourceColor" :progress-pct="resourcePct"
-                :no-transition="snapBars" />
-              <span class="bar-text">{{ fmt(detail.resource.current) }} / {{ fmt(detail.resource.max) }}</span>
+              <ProgressBar
+                class="resource-bar"
+                :fill-color="resourceColor"
+                :progress-pct="resourcePct"
+                :no-transition="snapBars"
+              />
+              <span class="bar-text"
+                >{{ fmt(detail.resource.current) }} / {{ fmt(detail.resource.max) }}</span
+              >
             </div>
             <div class="bar-row bar-row-xp">
-              <ProgressBar class="xp-bar" fill-color="purple" :progress-pct="xpPct" :no-transition="snapBars" />
+              <ProgressBar
+                class="xp-bar"
+                fill-color="var(--broadcast-accent)"
+                :progress-pct="xpPct"
+                :no-transition="snapBars"
+              />
             </div>
           </div>
         </div>
@@ -219,10 +303,21 @@ function runeIcon(rune: championRuneStat): string {
 
       <!-- Abilities + KDA -->
       <div class="abilities-row">
-        <AbilitySlot v-for="(ability, idx) in [q, w, e, r]" :key="idx" :ability="ability" show-level
-          variant="ability" :no-transition="snapBars" />
-        <AbilitySlot v-for="(spell, idx) in [summonerOne, summonerTwo]" :key="'s' + idx" :ability="spell"
-          variant="summoner" :no-transition="snapBars" />
+        <AbilitySlot
+          v-for="(ability, idx) in [q, w, e, r]"
+          :key="idx"
+          :ability="ability"
+          show-level
+          variant="ability"
+          :no-transition="snapBars"
+        />
+        <AbilitySlot
+          v-for="(spell, idx) in [summonerOne, summonerTwo]"
+          :key="'s' + idx"
+          :ability="spell"
+          variant="summoner"
+          :no-transition="snapBars"
+        />
         <span class="kda">{{ detail.kills }} / {{ detail.deaths }} / {{ detail.assists }}</span>
       </div>
 
@@ -240,9 +335,14 @@ function runeIcon(rune: championRuneStat): string {
             <StatCell icon="sparkle" color="#a267e0" :value="fmt(detail.stats.abilityPower)" />
             <StatCell icon="shield" color="#d4af37" :value="fmt(detail.stats.armor)" />
             <StatCell icon="circle-shield" color="#4f8fe0" :value="fmt(detail.stats.magicResist)" />
-            <StatCell icon="crossed-swords" color="#e0e0e0" :value="(detail.stats.attackSpeedIsMultiplierOnly ? '×' : '') +
-              detail.stats.attackSpeed.toFixed(2)
-              " />
+            <StatCell
+              icon="crossed-swords"
+              color="#e0e0e0"
+              :value="
+                (detail.stats.attackSpeedIsMultiplierOnly ? '×' : '') +
+                detail.stats.attackSpeed.toFixed(2)
+              "
+            />
             <StatCell icon="boot" color="#e0e0e0" :value="fmt(detail.stats.moveSpeed)" />
           </div>
         </Transition>
@@ -359,14 +459,14 @@ function runeIcon(rune: championRuneStat): string {
   min-width: 0;
 }
 
-/* Player name and champion name now sit inline on one row. */
+/* Player name and champion name sit inline on one row. The name font is auto-scaled in JS
+   (see fitName) to fit rather than ellipsize; overflow:hidden is only a clip-of-last-resort. */
 .display-name {
   font-size: 16px;
   letter-spacing: 0.02em;
   color: #ffffff;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   flex-shrink: 1;
 }
 
@@ -451,7 +551,6 @@ function runeIcon(rune: championRuneStat): string {
 /* KDA sits to the right of the spells, using the horizontal room freed up in the identity row. */
 .kda {
   margin-left: auto;
-  padding-right: 2px;
   font-size: 17px;
   color: #ffffff;
   white-space: nowrap;
@@ -464,7 +563,7 @@ function runeIcon(rune: championRuneStat): string {
   position: relative;
   min-height: 16px;
   padding-top: 1px;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: var(--brand-border-width) solid var(--border-color);
 }
 
 /* Compact single row of six cells spanning the panel width. */

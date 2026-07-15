@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { BestOfType } from '@bluebottle_gg/league-broadcast-client'
 
 const props = defineProps<{
@@ -7,6 +8,9 @@ const props = defineProps<{
   fillColor: string
   mirror?: boolean
 }>()
+
+// number of boxes = games needed to win the series (majority), not games played
+const boxCount = computed(() => Math.max(1, Math.ceil(Number(props.bestOf) / 2)))
 </script>
 
 <template>
@@ -23,7 +27,7 @@ const props = defineProps<{
     <div id="scores" class="w-2 flex flex-col gap-1.5" v-if="bestOf !== BestOfType.BestOf1">
       <div
         class="flex flex-1 w-full grow border border-white/55 rounded-xs p-px"
-        v-for="i in bestOf"
+        v-for="i in boxCount"
         :key="i"
       >
         <div

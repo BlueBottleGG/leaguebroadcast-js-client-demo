@@ -30,7 +30,7 @@ const stateLabels: Record<GameState, string> = {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font-size: 0.85rem;
   background: rgba(0, 0, 0, 0.7);
   color: #ccc;

@@ -1,5 +1,51 @@
 @import 'tailwindcss';
 
+/* --- Corner-radius scale -------------------------------------------------
+   One radius language for the whole overlay so floating cards, chips and
+   inner tiles never mix "rounded" with "hard-edged" identities.
+
+   Choose by element size / nesting depth (nested tiles step one rung down
+   from their parent so corners stay visually concentric):
+     lg  (8px)  primary floating panels & cards      (scoreboard, power play…)
+     md  (6px)  icon tiles inset in an lg card, mid standalone chips
+     sm  (4px)  list rows, badges, small chips
+     xs  (2px)  deeply-nested inner fills / progress bars
+     pill       fully-rounded bars & tags
+   Circles keep 50% / rounded-full. Panels flush to the screen edge (gold
+   graph, minimap, L-frame) stay square on their edge-touching corners. */
+:root {
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-pill: 999px;
+}
+
+/* --- Shared theme tokens -------------------------------------------------
+   Single source of truth for every entry point (main app + dev previews).
+   Declared on * (not :root) so they pierce into scoped-style components
+   the same way the previous App.vue block did. */
+* {
+  --blue-team-color: oklch(0.6231 0.188 259.81);
+  --red-team-color: oklch(0.6231 0.188 28.31);
+  --baron-color: oklch(0.581767 0.275459 301.0491);
+  --elder-color: oklch(0.8741 0.1329 177.69);
+  --baron-color-subtle: oklch(0.581767 0.275459 301.0491 / 0.3);
+  --elder-color-subtle: oklch(0.8741 0.1329 177.69 / 0.3);
+  /* BlueBottle project accent. Team colors remain reserved for game state. */
+  --broadcast-accent: #8175ff;
+  --border-color: color-mix(in oklab, var(--broadcast-accent) 72%, transparent);
+  /* Whole-pixel coverage survives browser capture and stream resampling more
+     reliably than the previous 1px/1.5px accent outlines. */
+  --brand-border-width: 2px;
+  /* Two-level surface system for every translucent panel scrim, so
+     "more/less transparent" feedback is a one-line change:
+       strong — primary panel surfaces (scoreboards, power play, …)
+       soft   — secondary rows, nested tiles, small chips */
+  --surface-strong: rgb(0 0 0 / 0.65);
+  --surface-soft: rgb(0 0 0 / 0.35);
+}
+
 /* Transparent background for OBS browser-source overlays */
 html,
 body,

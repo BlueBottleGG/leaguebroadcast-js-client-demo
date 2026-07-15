@@ -9,8 +9,9 @@ import MidIcon from '@/assets/lane/mid-placeholder-cropped.svg?url'
 import ADCIcon from '@/assets/lane/bot-placeholder-cropped.svg?url'
 import SupportIcon from '@/assets/lane/sup-placeholder-cropped.svg?url'
 
-import LeagueBroadcastLogo from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
+import logoUrl from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
 import { useClient } from '@/client'
+import { playerDisplayName } from '@/utils/playerDisplayName'
 
 const props = defineProps<{
   mirror?: boolean
@@ -129,14 +130,14 @@ function getRoleStyle(index: number) {
             </div>
             <!-- Player info -->
             <div class="skin-info" :class="{ mirror: mirror }">
-              <p class="player-name">{{ currentPlayer.playerName }}</p>
+              <p class="player-name">{{ playerDisplayName(currentPlayer) }}</p>
               <p class="skin-name">{{ currentPlayer.skinName }}</p>
             </div>
           </div>
         </transition>
       </div>
       <div class="powered-by-panel">
-        <img :src="LeagueBroadcastLogo" alt="League Broadcast Logo" class="h-6 object-contain" />
+        <img :src="logoUrl" alt="League Broadcast" class="h-6 object-contain" />
       </div>
     </div>
   </Transition>
@@ -150,6 +151,8 @@ function getRoleStyle(index: number) {
   left: 0;
   transform: translateY(-50%);
   background-color: black;
+  border: var(--brand-border-width) solid var(--border-color);
+  box-shadow: 0 0 14px color-mix(in oklab, var(--broadcast-accent) 25%, transparent);
 }
 
 .skin-container.mirror {
@@ -182,8 +185,42 @@ function getRoleStyle(index: number) {
   background: transparent;
 }
 
+/* Brand sheen: same sweep as the minimap frame — slow, soft, clipped by the panel */
+.skin-panel::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  z-index: 3;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    color-mix(in oklab, var(--broadcast-accent) 16%, transparent 55%),
+    transparent
+  );
+  animation: panel-sheen 21s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes panel-sheen {
+  0% {
+    transform: translateX(-110%) skewX(-18deg);
+  }
+
+  20% {
+    transform: translateX(330%) skewX(-18deg);
+  }
+
+  100% {
+    transform: translateX(330%) skewX(-18deg);
+  }
+}
+
 .powered-by-panel {
   background: black;
+  border-top: 2px solid var(--broadcast-accent);
   width: 100%;
   padding: 0px;
   height: 40px;
@@ -254,8 +291,9 @@ function getRoleStyle(index: number) {
 
 .player-name {
   font-size: 0.875rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.8);
+  font-weight: 700;
+  /* project-style accent eyebrow label, lightened for contrast on the splash */
+  color: color-mix(in oklab, var(--broadcast-accent) 65%, white);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0;

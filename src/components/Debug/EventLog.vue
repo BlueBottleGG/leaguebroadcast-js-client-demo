@@ -57,7 +57,7 @@ onUnmounted(() => unsubEvents.forEach((u) => u()))
 <style scoped>
 .event-log {
   background: rgba(0, 0, 0, 0.85);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   padding: 1rem 1.5rem;
   color: #fff;
   max-height: 300px;

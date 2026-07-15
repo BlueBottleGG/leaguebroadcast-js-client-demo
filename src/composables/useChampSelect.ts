@@ -8,33 +8,16 @@ import {
   type teamMember,
 } from '@bluebottle_gg/league-broadcast-client'
 import { useClient } from '@/client'
-import {
-  isMockCsEnabled,
-  mockSnapshot,
-  subscribeMock,
-  startMockSimulation,
-} from '@/components/ChampionSelect/mock/mockChampSelect'
+import { playerDisplayName } from '@/utils/playerDisplayName'
 
 /**
- * Reactive Vue wrapper around `client.selectChampSelect()`.
- * In dev mock mode (`?mockcs`) the selector reads from the local mock
- * snapshot so every component stays client-agnostic.
+ * Reactive Vue wrapper around `client.selectChampSelect()`, so every
+ * component stays client-agnostic.
  */
 export function useChampSelectSelector<T>(
   selector: (snapshot: ChampSelectSnapshot) => T,
   equalityFn = shallowEqual,
 ): Ref<T> {
-  if (isMockCsEnabled()) {
-    startMockSimulation()
-    const value = ref(selector(mockSnapshot())) as Ref<T>
-    const unsub = subscribeMock(() => {
-      const next = selector(mockSnapshot())
-      if (!equalityFn(value.value, next)) value.value = next
-    })
-    onUnmounted(unsub)
-    return value
-  }
-
   const client = useClient()
   const subscribable = client.selectChampSelect(selector, equalityFn)
   const value = ref(subscribable.getSnapshot()) as Ref<T>
@@ -63,8 +46,7 @@ function looksLikePuuid(v?: string): boolean {
 
 function memberDisplay(m: teamMember): string {
   return (
-    m.displayName ||
-    m.alias ||
+    playerDisplayName(m) ||
     [m.givenName, m.familyName].filter(Boolean).join(' ') ||
     ''
   ).trim()
@@ -143,9 +125,6 @@ export function useSmoothCountdown(get: () => number): Ref<number> {
 
 /** Reactive boolean for whether the pre-game WebSocket is connected. */
 export function usePreGameConnected(): Ref<boolean> {
-  if (isMockCsEnabled()) {
-    return ref(true)
-  }
   const client = useClient()
   const connected = ref(client.isPreGameConnected())
   const unsubConnect = client.onPreGameConnect(() => {

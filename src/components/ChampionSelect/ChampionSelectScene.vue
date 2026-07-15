@@ -1,23 +1,23 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
-import {
-  PickBanPhase,
-  type championData,
-  type championSelectTeam,
-} from '@bluebottle_gg/league-broadcast-client'
+import { type championData, type championSelectTeam } from '@bluebottle_gg/league-broadcast-client'
 import { useChampSelectData, useIsChampSelectActive } from '@/composables/useChampSelect'
 import { useClient } from '@/client'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
-import { isMockCsEnabled } from './mock/mockChampSelect'
+import { playActionSound, preloadActionSounds } from '@/composables/useActionSounds'
 import PhaseTimerBar from './PhaseTimerBar.vue'
 import BanRow from './BanRow.vue'
 import PickCard from './PickCard.vue'
 import CenterPanel from './CenterPanel.vue'
 import FearlessBanBar from './FearlessBanBar.vue'
 import CoachDisplay from './CoachDisplay.vue'
+import EventBrandPlate from './EventBrandPlate.vue'
 
 const isActive = useIsChampSelectActive()
 const data = useChampSelectData()
+
+// warm the pick/ban cues so the first lock-in doesn't decode late
+preloadActionSounds()
 
 // Local render gate. On an early exit we first end any in-flight pick/ban
 // lock-in flourish (ban flash / featured pick), let the cards settle, and only
@@ -39,13 +39,95 @@ const blueTeam = computed(() => frozenData.value.blueTeam)
 const redTeam = computed(() => frozenData.value.redTeam)
 const timer = computed(() => frozenData.value.timer)
 
+type DraftSide = 'blue' | 'red'
+type BanSlotRef = { side: DraftSide; index: number }
+
+const FIRST_BAN_ORDER: BanSlotRef[] = [
+  { side: 'blue', index: 0 },
+  { side: 'red', index: 0 },
+  { side: 'blue', index: 1 },
+  { side: 'red', index: 1 },
+  { side: 'blue', index: 2 },
+  { side: 'red', index: 2 },
+]
+const SECOND_BAN_ORDER: BanSlotRef[] = [
+  { side: 'red', index: 3 },
+  { side: 'blue', index: 3 },
+  { side: 'red', index: 4 },
+  { side: 'blue', index: 4 },
+]
+const BAN_ORDER = [...FIRST_BAN_ORDER, ...SECOND_BAN_ORDER]
+
+function allBans() {
+  return [...(blueTeam.value?.bans ?? []), ...(redTeam.value?.bans ?? [])]
+}
+
+function allPickSlots() {
+  return [...(blueTeam.value?.slots ?? []), ...(redTeam.value?.slots ?? [])]
+}
+
+const hasTenLoadedPlayers = computed(() => {
+  const slots = allPickSlots()
+  return slots.length === 10 && slots.every((slot) => slot.player?.trim())
+})
+
+function activeBanCount(): number {
+  return allBans().filter((ban) => ban.isActive).length
+}
+
+function lockedBanCount(): number {
+  return allBans().filter((ban) => ban.champion && !ban.isActive).length
+}
+
+function lockedPickCount(): number {
+  return allPickSlots().filter((slot) => slot.champion && !slot.isActive).length
+}
+
+function clampIndex(index: number, length: number): number {
+  return Math.max(0, Math.min(index, length - 1))
+}
+
+const derivedActiveBan = computed<BanSlotRef | null>(() => {
+  if (!hasTenLoadedPlayers.value || activeBanCount() <= 1) return null
+
+  const bansLocked = lockedBanCount()
+  if (bansLocked < FIRST_BAN_ORDER.length) {
+    return FIRST_BAN_ORDER[clampIndex(bansLocked, FIRST_BAN_ORDER.length)] ?? null
+  }
+  if (bansLocked < BAN_ORDER.length && lockedPickCount() >= 6) {
+    return BAN_ORDER[clampIndex(bansLocked, BAN_ORDER.length)] ?? null
+  }
+  return null
+})
+
+const hasMultiActiveBans = computed(() => hasTenLoadedPlayers.value && activeBanCount() > 1)
+
+const blueBans = computed(() =>
+  (blueTeam.value?.bans ?? []).map((ban, index) => ({
+    ...ban,
+    isActive: hasMultiActiveBans.value
+      ? derivedActiveBan.value?.side === 'blue' && derivedActiveBan.value.index === index
+      : ban.isActive,
+  })),
+)
+const redBans = computed(() =>
+  (redTeam.value?.bans ?? []).map((ban, index) => ({
+    ...ban,
+    isActive: hasMultiActiveBans.value
+      ? derivedActiveBan.value?.side === 'red' && derivedActiveBan.value.index === index
+      : ban.isActive,
+  })),
+)
+
 // which side currently has an active pick/ban (drives colors + dials)
 const activeSide = computed<'blue' | 'red' | null>(() => {
+  if (derivedActiveBan.value) return derivedActiveBan.value.side
+
   const blueActive =
-    blueTeam.value?.slots?.some((s) => s.isActive) || blueTeam.value?.bans?.some((b) => b.isActive)
+    blueTeam.value?.slots?.some((s) => s.isActive) || blueBans.value.some((b) => b.isActive)
   if (blueActive) return 'blue'
   const redActive =
-    redTeam.value?.slots?.some((s) => s.isActive) || redTeam.value?.bans?.some((b) => b.isActive)
+    redTeam.value?.slots?.some((s) => s.isActive) || redBans.value.some((b) => b.isActive)
   if (redActive) return 'red'
   return null
 })
@@ -72,8 +154,8 @@ const redGrowInactive = computed(() => growInactive(redTeam.value?.slots?.length
 
 const phaseTimerSide = computed(() => activeSide.value)
 
-const client = isMockCsEnabled() ? null : useClient()
-const cacheUrl = (path?: string) => (client ? client.getCacheUrl(path) : (path ?? ''))
+const client = useClient()
+const cacheUrl = (path?: string) => client.getCacheUrl(path)
 
 // -- lock-in flashes ----------------------------------------------------------
 // A ban locking splashes the banned champion across the whole team pick area,
@@ -106,12 +188,14 @@ onUnmounted(() => {
 })
 
 function triggerBanFlash(side: 'blue' | 'red', champ: championData) {
+  playActionSound('ban')
   banFlash.value = { ...banFlash.value, [side]: { champ, key: ++flashKey } }
   schedule(`ban-${side}`, 2200, () => {
     banFlash.value = { ...banFlash.value, [side]: null }
   })
 }
 function triggerPickFeature(side: 'blue' | 'red', index: number) {
+  playActionSound('pick')
   featuredPick.value = { ...featuredPick.value, [side]: index }
   // long enough to read the champion statistics shown on the expanded card
   schedule(`pick-${side}`, 2400, () => {
@@ -119,23 +203,32 @@ function triggerPickFeature(side: 'blue' | 'red', index: number) {
   })
 }
 
-// a slot "locks" when it goes active → inactive while holding a champion
+// A slot is "locked" once it holds a champion and is no longer the active
+// pick/ban — the hover has been committed. We fire on the not-locked → locked
+// transition rather than strictly on active → inactive, so a lock still counts
+// even when the backend never sent an intermediate active frame (batched
+// snapshots, a reconnect mid-draft, a fast lock). The length guard skips the
+// initial population / reset (0 ↔ N slots) so picks already locked when the
+// scene appears part-way through a draft don't retrigger a flash or a sound.
+function isLocked(x?: { isActive?: boolean; champion?: championData }): boolean {
+  return !!x?.champion && !x.isActive
+}
 function watchLocks(side: 'blue' | 'red', team: () => championSelectTeam | undefined) {
   watch(
     () => team()?.bans,
     (next, prev) => {
-      if (!next || !prev) return
+      if (!next || !prev || next.length !== prev.length) return
       next.forEach((b, i) => {
-        if (prev[i]?.isActive && !b.isActive && b.champion) triggerBanFlash(side, b.champion)
+        if (b.champion && isLocked(b) && !isLocked(prev[i])) triggerBanFlash(side, b.champion)
       })
     },
   )
   watch(
     () => team()?.slots,
     (next, prev) => {
-      if (!next || !prev) return
+      if (!next || !prev || next.length !== prev.length) return
       next.forEach((s, i) => {
-        if (prev[i]?.isActive && !s.isActive && s.champion) triggerPickFeature(side, i)
+        if (isLocked(s) && !isLocked(prev[i])) triggerPickFeature(side, i)
       })
     },
   )
@@ -182,12 +275,13 @@ watch(isActive, (active) => {
       <div class="bottom-block">
         <div class="ban-strip">
           <div class="ban-cluster">
-            <BanRow :bans="blueTeam.bans ?? []" team="blue" />
+            <BanRow :bans="blueBans" team="blue" />
             <CoachDisplay :team="blueTeam" side="blue" />
           </div>
+          <EventBrandPlate :meta-data="frozenData.metaData" />
           <div class="ban-cluster">
             <CoachDisplay :team="redTeam" side="red" />
-            <BanRow :bans="redTeam.bans ?? []" team="red" />
+            <BanRow :bans="redBans" team="red" />
           </div>
         </div>
 
@@ -210,6 +304,7 @@ watch(isActive, (active) => {
               :grow-inactive="blueGrowInactive"
               :featured="featuredPick.blue === i"
               :collapsed="featuredPick.blue !== null && featuredPick.blue !== i"
+              :class="{ 'edge-left': i === 0 }"
             />
             <Transition name="ban-flash">
               <div v-if="banFlash.blue" :key="banFlash.blue.key" class="ban-flash team-blue">
@@ -229,14 +324,7 @@ watch(isActive, (active) => {
             </Transition>
           </div>
 
-          <CenterPanel
-            :blue-team="blueTeam"
-            :red-team="redTeam"
-            :best-of="bestOf"
-            :time-remaining="timer.timeRemaining"
-            :phase-duration="timer.phaseDuration"
-            :active-side="activeSide"
-          />
+          <CenterPanel :blue-team="blueTeam" :red-team="redTeam" :best-of="bestOf" />
 
           <div class="picks red">
             <PickCard
@@ -250,6 +338,7 @@ watch(isActive, (active) => {
               :grow-inactive="redGrowInactive"
               :featured="featuredPick.red === i"
               :collapsed="featuredPick.red !== null && featuredPick.red !== i"
+              :class="{ 'edge-right': i === (redTeam.slots?.length ?? 0) - 1 }"
             />
             <Transition name="ban-flash">
               <div v-if="banFlash.red" :key="banFlash.red.key" class="ban-flash team-red">
@@ -282,14 +371,18 @@ watch(isActive, (active) => {
 }
 
 /* full-width flex wrapper: shrink-to-fit at left:50% would cap the bar at
-   960px and force extra wrapping once fearless games pile up */
+   960px and force extra wrapping once fearless games pile up. The fearless
+   ban strip runs edge-to-edge at the very top; the studio background's caster
+   cameras sit directly below it, so nothing else may hang from this strip
+   (the sponsor plate lives in the bottom block for that reason). */
 .fearless-wrap {
   position: absolute;
   top: 0;
   left: 0;
   width: 1920px;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   transition:
     transform 0.5s ease,
     opacity 0.5s ease;
@@ -303,16 +396,28 @@ watch(isActive, (active) => {
   width: 1920px;
 }
 
+/* three columns: ban clusters pushed to the edges, the sponsor plate centered
+   between them. Everything bottom-aligns so the plate sits flush on the phase
+   timer bar (its tab styling depends on that) while the clusters keep their
+   6px breathing room via their own margin. */
 .ban-strip {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 16px 6px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  padding: 8px 16px 0;
 }
 
 .ban-cluster {
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-bottom: 6px;
+}
+.ban-cluster:first-child {
+  justify-self: start;
+}
+.ban-cluster:last-child {
+  justify-self: end;
 }
 
 .pick-strip {
@@ -321,8 +426,10 @@ watch(isActive, (active) => {
   /* cap the implicit row so tall center content can never stretch the cards */
   grid-template-rows: 100%;
   height: 260px;
-  /* no backdrop here — the dark backing rides in per card (splash art) and with
-     the center panel, so the row is transparent until pieces animate into view */
+  /* flush, edge-to-edge strip with its own dark backing (same tone as the
+     timer bar above it): the cards' rounded top corners open tiny notches at
+     each seam, and those must show this backing — never the studio background */
+  background: rgb(0 0 0 / 0.85);
 }
 
 .picks {
@@ -338,7 +445,7 @@ watch(isActive, (active) => {
   inset: 0;
   z-index: 2;
   overflow: hidden;
-  background: rgba(4, 6, 10, 0.85);
+  background: rgb(0 0 0 / 0.85);
   pointer-events: none;
 }
 .bf-art {
@@ -367,18 +474,16 @@ watch(isActive, (active) => {
 .bf-scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    to top,
-    rgba(4, 6, 10, 0.9),
-    rgba(4, 6, 10, 0.15) 45%,
-    rgba(4, 6, 10, 0.35)
-  );
+  background: linear-gradient(to top, rgb(0 0 0 / 0.9), rgb(0 0 0 / 0.15) 45%, rgb(0 0 0 / 0.35));
 }
 .ban-flash.team-blue {
   border-bottom: 3px solid var(--blue-team-color);
+  /* mirrors the cards it covers: rounded toward the center, square at the screen edge */
+  border-radius: 0 6px 0 0;
 }
 .ban-flash.team-red {
   border-bottom: 3px solid var(--red-team-color);
+  border-radius: 6px 0 0 0;
 }
 
 .bf-label {
@@ -392,11 +497,12 @@ watch(isActive, (active) => {
   gap: 2px;
 }
 .bf-banned {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 18px;
-  letter-spacing: 8px;
-  text-indent: 8px; /* recenter: letter-spacing adds a trailing gap */
-  color: #94a3b8;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 5px;
+  text-indent: 5px; /* recenter: letter-spacing adds a trailing gap */
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.7);
 }
 .team-blue .bf-banned {
   color: color-mix(in oklch, var(--blue-team-color) 60%, #ffffff);
@@ -405,11 +511,12 @@ watch(isActive, (active) => {
   color: color-mix(in oklch, var(--red-team-color) 60%, #ffffff);
 }
 .bf-name {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 44px;
+  font-weight: 900;
+  font-size: 38px;
   line-height: 1;
-  letter-spacing: 2px;
-  color: #f1f5f9;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #ffffff;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
 
@@ -462,10 +569,7 @@ watch(isActive, (active) => {
     opacity 0.4s ease,
     transform 0.5s cubic-bezier(0.34, 1.5, 0.64, 1),
     flex-grow 0.35s ease;
-  transition-delay:
-    calc(0.4s + var(--ci, 0) * 0.1s),
-    calc(0.4s + var(--ci, 0) * 0.1s),
-    0s;
+  transition-delay: calc(0.4s + var(--ci, 0) * 0.1s), calc(0.4s + var(--ci, 0) * 0.1s), 0s;
 }
 
 /* 3 — timer bar wipes out from the center */
@@ -474,6 +578,17 @@ watch(isActive, (active) => {
 }
 .scene-enter-active .phase-timer-bar {
   transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.85s;
+}
+
+/* 3b — sponsor plate rises from behind the timer bar right after the wipe */
+.scene-enter-from .brand-plate {
+  opacity: 0;
+  transform: translateY(30px);
+}
+.scene-enter-active .brand-plate {
+  transition:
+    transform 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.95s,
+    opacity 0.3s ease 0.95s;
 }
 
 /* 4 — ban slots pop in, staggered outward */
@@ -528,6 +643,15 @@ watch(isActive, (active) => {
 }
 .scene-leave-to :deep(.coach-plate) {
   transform: translateY(110%);
+  opacity: 0;
+}
+.scene-leave-active .brand-plate {
+  transition:
+    transform 0.25s ease-in,
+    opacity 0.25s ease;
+}
+.scene-leave-to .brand-plate {
+  transform: translateY(30px);
   opacity: 0;
 }
 .scene-leave-active :deep(.ban-slot) {

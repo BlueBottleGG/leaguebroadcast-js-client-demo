@@ -1,0 +1,138 @@
+/* Positioning of every overlay element on the 1920x1080 canvas.
+   Shared (unscoped) so the full overlay (/) and the single-element pages
+   (/element/<name>) render each element at exactly the same spot.
+
+   Every rule is prefixed with #app: these must beat the components' own
+   scoped root styles (e.g. GoldGraph's `position: relative`), which have
+   class+attribute specificity and are injected later than this file. The
+   id selector wins regardless of injection order. */
+
+#app .overlay {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+}
+
+#app .overlay-scoreboard {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+#app .overlay-bottom {
+  position: absolute;
+  bottom: 0px;
+  left: 0px;
+  width: calc(1920px - 285px);
+  height: 260px;
+}
+
+#app .overlay-playerscoreboard {
+  position: absolute;
+  bottom: 0px;
+  left: calc(285px + 176px);
+  right: calc(285px + 176px);
+  height: 260px;
+}
+
+#app .overlay-playercameras {
+  position: absolute;
+  bottom: 0px;
+  left: 285px;
+  right: 285px;
+  height: 260px;
+}
+
+#app .overlay-objective-timers {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+}
+
+#app .overlay-side-info {
+  position: absolute;
+  top: 154px;
+  left: 0px;
+}
+
+#app .overlay-minimap {
+  position: absolute;
+  bottom: 0px;
+  right: 0px;
+  width: 285px;
+  height: 280px;
+}
+
+#app .overlay-lframe {
+  position: absolute;
+  bottom: 0px;
+  left: 0px;
+  width: 285px;
+  height: 260px;
+}
+
+#app .overlay-teamfight {
+  position: absolute;
+  bottom: 0px;
+  left: calc(285px + 176px);
+  right: calc(285px + 176px);
+  height: 260px;
+}
+
+/* Post-teamfight damage panels (see TeamfightPanels.vue).
+   Anchored over the bottom player-scoreboard footprint so the recap takes it
+   over: same left/right insets as .overlay-playerscoreboard, flush to bottom. */
+#app .overlay-teamfight-panels {
+  position: absolute;
+  bottom: 0;
+  left: calc(285px + 176px);
+  right: calc(285px + 176px);
+  /* Own the bottom-scoreboard layer while a recap/damage panel is visible.
+     The player scoreboard contains positioned buff borders and notifications
+     with positive z-index values; without an outer stacking level those
+     descendants can paint over the otherwise opaque takeover panel. */
+  z-index: 20;
+  isolation: isolate;
+}
+
+#app .overlay-killfeed {
+  position: absolute;
+  top: 100px;
+  right: 0px;
+}
+
+/* Roughly where League places its native announcements: centered, below the scoreboard */
+#app .overlay-announcer {
+  position: absolute;
+  top: 170px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 640px;
+}
+
+/* Champion-select scene fills the whole canvas (self-gated on active draft) */
+#app .overlay-champion-select {
+  position: absolute;
+  inset: 0;
+}
+
+/* Post-game recap scene fills the whole canvas (self-gated on post-game active) */
+#app .overlay-postgame {
+  position: absolute;
+  inset: 0;
+}
+
+/* Debug tools (/element/debug) */
+#app .overlay-debug-connection {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+}
+
+#app .overlay-debug-eventlog {
+  position: absolute;
+  top: 80px;
+  left: 20px;
+  max-height: 900px;
+}

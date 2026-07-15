@@ -2,15 +2,14 @@
 import type { banSlot } from '@bluebottle_gg/league-broadcast-client'
 import { useClient } from '@/client'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
-import { isMockCsEnabled } from './mock/mockChampSelect'
 
 const props = defineProps<{
   bans: banSlot[]
   team: 'blue' | 'red'
 }>()
 
-const client = isMockCsEnabled() ? null : useClient()
-const cacheUrl = (path?: string) => (client ? client.getCacheUrl(path) : (path ?? ''))
+const client = useClient()
+const cacheUrl = (path?: string) => client.getCacheUrl(path)
 </script>
 
 <template>
@@ -20,7 +19,7 @@ const cacheUrl = (path?: string) => (client ? client.getCacheUrl(path) : (path ?
         v-for="(ban, i) in bans"
         :key="i"
         class="ban-slot"
-        :class="{ active: ban.isActive, empty: !ban.champion }"
+        :class="{ active: ban.isActive, empty: !ban.champion, done: ban.champion && !ban.isActive }"
         :style="{ '--bi': i }"
       >
         <img
@@ -53,22 +52,30 @@ const cacheUrl = (path?: string) => (client ? client.getCacheUrl(path) : (path ?
   height: 48px;
   border-radius: 3px;
   overflow: hidden;
-  background: rgba(10, 14, 22, 0.7);
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgb(0 0 0 / 0.7);
+  border: 1px solid rgb(255 255 255 / 0.14);
 }
 .ban-slot.empty {
-  background: rgba(6, 9, 15, 0.8);
+  background: rgb(0 0 0 / 0.8);
 }
 
-/* matches the end state of the ban-flash gray-out in ChampionSelectScene */
+/* full colour while the ban is active/hovered; desaturates only once the ban
+   completes (see .ban-slot.done), matching the ban-flash gray-out end state */
 .ban-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  filter: saturate(1) brightness(1);
+  transition: filter 0.45s ease;
+}
+.ban-slot.done .ban-img {
   filter: saturate(0) brightness(0.55);
 }
 
-/* diagonal strike in team color */
+/* diagonal strike in team color — slashes bottom-left → top-right once the ban
+   completes. Line is pinned just inside the bottom-left corner and rotated
+   -45deg toward the top-right; scaleX from the left end makes it draw. The
+   inset start/short length leave small gaps at both corners. */
 .strike {
   position: absolute;
   inset: 0;
@@ -77,12 +84,24 @@ const cacheUrl = (path?: string) => (client ? client.getCacheUrl(path) : (path ?
 .strike::after {
   content: '';
   position: absolute;
-  top: 50%;
-  left: -10%;
-  width: 120%;
+  top: calc(100% - 6px);
+  left: 5px;
+  /* short of the full diagonal (~141%) so both ends stop before the corners */
+  width: 116%;
   height: 2px;
-  transform: rotate(-45deg);
-  transform-origin: center;
+  transform-origin: left center;
+  transform: rotate(-45deg) scaleX(0);
+}
+.ban-slot.done .strike::after {
+  animation: ban-slash 0.38s cubic-bezier(0.4, 0, 0.15, 1) forwards;
+}
+@keyframes ban-slash {
+  from {
+    transform: rotate(-45deg) scaleX(0);
+  }
+  to {
+    transform: rotate(-45deg) scaleX(1);
+  }
 }
 .team-blue .strike::after {
   background: var(--blue-team-color);

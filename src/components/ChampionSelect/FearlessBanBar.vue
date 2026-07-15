@@ -3,15 +3,14 @@ import { computed } from 'vue'
 import type { championSelectTeam, simpleChampionData } from '@bluebottle_gg/league-broadcast-client'
 import { useClient } from '@/client'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
-import { isMockCsEnabled } from './mock/mockChampSelect'
 
 const props = defineProps<{
   blueTeam: championSelectTeam
   redTeam: championSelectTeam
 }>()
 
-const client = isMockCsEnabled() ? null : useClient()
-const cacheUrl = (path?: string) => (client ? client.getCacheUrl(path) : (path ?? ''))
+const client = useClient()
+const cacheUrl = (path?: string) => client.getCacheUrl(path)
 
 interface GameGroup {
   game: number // 1-based sequential label
@@ -92,15 +91,17 @@ const iconSize = computed(() => (maxGroups.value <= 3 ? 36 : 30))
 </template>
 
 <style scoped>
+/* edge-to-edge strip at the very top of the scene; the game groups stay
+   centered inside it */
 .fearless-bar {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 16px;
   min-height: 52px;
-  max-width: 1900px;
+  width: 100%;
   padding: 5px 20px;
-  background: linear-gradient(to bottom, rgba(6, 9, 15, 0.94), rgba(6, 9, 15, 0.78));
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.94), rgb(0 0 0 / 0.78));
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
 }
 
@@ -113,26 +114,32 @@ const iconSize = computed(() => (maxGroups.value <= 3 ? 36 : 30))
   justify-content: flex-end;
 }
 
+/* hairline separators BETWEEN a side's game groups only: blue puts them on the
+   right of every group but the last, red mirrors with left borders on every
+   group but the first (so no stray line ends up beside the center divider) */
 .game-group {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 0 8px;
-  border-right: 1px solid rgba(148, 163, 184, 0.12);
+  border-right: 1px solid rgb(255 255 255 / 0.12);
+}
+.game-group:last-child {
+  border-right: none;
 }
 .side.red .game-group {
   border-right: none;
-  border-left: 1px solid rgba(148, 163, 184, 0.12);
+  border-left: 1px solid rgb(255 255 255 / 0.12);
 }
-.game-group:last-child {
-  border: none;
+.side.red .game-group:first-child {
+  border-left: none;
 }
 
 .game-label {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: calc(var(--fear-icon, 36px) * 0.42);
-  letter-spacing: 1px;
-  color: #94a3b8;
+  font-weight: 800;
+  font-size: calc(var(--fear-icon, 36px) * 0.38);
+  letter-spacing: 0.5px;
+  color: color-mix(in oklab, var(--broadcast-accent) 60%, #ffffff);
 }
 
 .icons {
@@ -189,9 +196,9 @@ const iconSize = computed(() => (maxGroups.value <= 3 ? 36 : 30))
   margin: 8px 4px;
   background: linear-gradient(
     to bottom,
-    rgba(148, 163, 184, 0),
-    rgba(148, 163, 184, 0.5),
-    rgba(148, 163, 184, 0)
+    transparent,
+    color-mix(in oklab, var(--broadcast-accent) 75%, transparent),
+    transparent
   );
 }
 

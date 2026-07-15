@@ -29,13 +29,20 @@ const hasCharges = computed(() => (props.ability?.charges ?? 0) > 0)
 
 <template>
   <div class="ability-slot" :class="variant">
-    <SpellWithCooldown class="ability-slot-icon" :ready-at="ability?.readyAt" :total-cooldown="ability?.totalCooldown"
-      :img="client.getCacheUrl(ability?.assets?.iconAsset)" show-timer :skilled="skilled" dim-unskilled
-      :no-transition="noTransition" />
+    <SpellWithCooldown
+      class="ability-slot-icon"
+      :ready-at="ability?.readyAt"
+      :total-cooldown="ability?.totalCooldown"
+      :img="client.getCacheUrl(ability?.assets?.iconAsset)"
+      show-timer
+      :skilled="skilled"
+      dim-unskilled
+      :no-transition="noTransition"
+    />
     <span class="charge-badge" v-if="hasCharges">{{ ability?.charges }}</span>
     <span class="level-badge" v-if="showLevel && (ability?.level ?? 0) > 0">{{
       ability?.level
-      }}</span>
+    }}</span>
   </div>
 </template>
 

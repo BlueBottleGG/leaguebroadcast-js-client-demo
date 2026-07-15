@@ -72,6 +72,23 @@ export function useIsInGame(): Ref<boolean> {
   return isInGame
 }
 
+/** Reactive: whether the backend is in a testing / replay (mock) environment. */
+export function useIsTestingEnvironment(): Ref<boolean> {
+  const client = useClient()
+  const testing = ref(client.isInTestingEnvironment())
+  const unsubStatus = client.onIngameStatusChange((_status, isTestingEnv) => {
+    testing.value = isTestingEnv
+  })
+  const unsubState = client.onIngameStateUpdate((state) => {
+    if (state.isTestingEnvironment !== undefined) testing.value = state.isTestingEnvironment
+  })
+  onUnmounted(() => {
+    unsubStatus()
+    unsubState()
+  })
+  return testing
+}
+
 /** Reactive boolean for whether the in-game WebSocket is connected. */
 export function useIngameConnected(): Ref<boolean> {
   const client = useClient()

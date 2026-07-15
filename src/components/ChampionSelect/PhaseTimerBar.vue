@@ -14,12 +14,14 @@ const pct = computed(() => {
   return Math.max(0, Math.min(1, smoothTime.value / props.phaseDuration)) * 100
 })
 
+// no active side → neutral white. NOT accent: the bar sits flush against the
+// team-colored pick-card edges, and accent may never touch a team color (CI).
 const color = computed(() =>
   props.activeSide === 'blue'
     ? 'var(--blue-team-color)'
     : props.activeSide === 'red'
       ? 'var(--red-team-color)'
-      : 'rgba(148, 163, 184, 0.6)',
+      : 'rgb(255 255 255 / 0.75)',
 )
 </script>
 
@@ -37,7 +39,7 @@ const color = computed(() =>
   position: relative;
   width: 100%;
   height: 8px;
-  background: rgba(8, 12, 20, 0.85);
+  background: rgb(0 0 0 / 0.85);
   overflow: hidden;
 }
 

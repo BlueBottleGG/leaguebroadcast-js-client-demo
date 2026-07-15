@@ -83,8 +83,8 @@ withDefaults(
 }
 
 .stat-value {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 15px;
+  font-weight: 700;
+  font-size: 14px;
   color: #f2ead7;
   text-shadow: 0 0 2px rgba(0, 0, 0, 1);
   white-space: nowrap;

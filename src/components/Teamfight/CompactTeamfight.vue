@@ -2,7 +2,8 @@
 import { useIngameSelector } from '@/composables/useIngame'
 import { Team } from '@bluebottle_gg/league-broadcast-client'
 import { computed } from 'vue'
-import BlueBottleGGLogo from '@/assets/blue_bottle-logo-color-bright_outline.svg'
+import brandEmblem from '@/assets/blue_bottle-logo-color-bright_outline.svg?url'
+import leagueBroadcastLogo from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
 import TeamfightPlayerEntry from './TeamfightPlayerEntry.vue'
 
 const teamfight = useIngameSelector((state) => state.gameData.teamfightDamageOverview)
@@ -14,74 +15,45 @@ const redEntries = computed(
   () => teamfight?.value?.damageDealt.filter((entry) => entry.team === Team.Chaos) || [],
 )
 
-const STAGGER_STEP = 0.1
-const BASE_DELAY = 0.5
-
-function onBeforeEnter(el: Element) {
-  const htmlEl = el as HTMLElement
-  htmlEl.style.opacity = '0'
-  htmlEl.style.transform = 'translateY(100%)'
-}
-
-function makeEnterHandler(
-  getDelay: (index: number, total: number) => number,
-  getTotal: () => number,
-) {
-  return (el: Element, done: () => void) => {
-    const htmlEl = el as HTMLElement
-    const index = parseInt((htmlEl as HTMLElement).dataset.index ?? '0')
-    const delay = BASE_DELAY + getDelay(index, getTotal())
-    htmlEl.style.transition = `opacity 0.3s ease ${delay}s, transform 0.3s ease ${delay}s`
-    // force reflow
-    void htmlEl.offsetHeight
-    htmlEl.style.opacity = '1'
-    htmlEl.style.transform = 'translateY(0)'
-    htmlEl.addEventListener('transitionend', done, { once: true })
-  }
-}
-
-// Blue: inside = highest index (rightmost), outside = 0 (leftmost)
-const onBlueEnter = makeEnterHandler(
-  (index, total) => (total - 1 - index) * STAGGER_STEP,
-  () => blueEntries.value.length,
-)
-
-// Red: inside = index 0 (leftmost), outside = highest index (rightmost)
-const onRedEnter = makeEnterHandler(
-  (index) => index * STAGGER_STEP,
-  () => redEntries.value.length,
-)
+// Center-out reveal order (0 = innermost, nearest the center logo).
+// Blue sits left of center, so the rightmost/last entry is innermost.
+// Red sits right of center, so the leftmost/first entry is innermost.
+// The stagger is a pure CSS keyframe animation keyed off this order — the entry
+// row re-renders every game frame (damage values update), and an imperatively
+// set style.transition would get clobbered by Vue's per-frame style patch,
+// which is what made the pop-in order look random.
+const blueOrder = (index: number) => blueEntries.value.length - 1 - index
+const redOrder = (index: number) => index
 </script>
 
 <template>
   <Transition name="slide-down">
     <div v-if="teamfight" class="teamfight-container">
       <div class="team-container order">
-        <TransitionGroup appear @before-enter="onBeforeEnter" @enter="onBlueEnter">
-          <TeamfightPlayerEntry
-            class="team-entry"
-            v-for="(entry, index) in blueEntries"
-            :key="index"
-            :data="entry"
-            :data-index="index"
-          >
-          </TeamfightPlayerEntry>
-        </TransitionGroup>
+        <TeamfightPlayerEntry
+          class="team-entry"
+          v-for="(entry, index) in blueEntries"
+          :key="index"
+          :data="entry"
+          :style="{ '--enter-order': blueOrder(index) }"
+        >
+        </TeamfightPlayerEntry>
       </div>
-      <BlueBottleGGLogo class="teamfight-logo" />
+      <div class="teamfight-logo">
+        <img :src="brandEmblem" class="teamfight-logo-emblem" alt="BlueBottle" />
+        <img :src="leagueBroadcastLogo" class="teamfight-logo-lockup" alt="League Broadcast" />
+      </div>
 
       <div class="team-container chaos">
-        <TransitionGroup appear @before-enter="onBeforeEnter" @enter="onRedEnter">
-          <TeamfightPlayerEntry
-            class="team-entry"
-            v-for="(entry, index) in redEntries"
-            :key="index"
-            :data="entry"
-            mirror
-            :data-index="index"
-          >
-          </TeamfightPlayerEntry>
-        </TransitionGroup>
+        <TeamfightPlayerEntry
+          class="team-entry"
+          v-for="(entry, index) in redEntries"
+          :key="index"
+          :data="entry"
+          mirror
+          :style="{ '--enter-order': redOrder(index) }"
+        >
+        </TeamfightPlayerEntry>
       </div>
     </div>
   </Transition>
@@ -93,7 +65,7 @@ const onRedEnter = makeEnterHandler(
   grid-template-columns: 1fr 100px 1fr;
   grid-template-rows: auto;
   align-items: center;
-  background: linear-gradient(to bottom, rgba(30, 30, 30, 0), rgba(10, 10, 10, 1));
+  background: linear-gradient(to bottom, rgba(30, 30, 30, 0), rgba(10, 10, 10, 0.85));
 }
 
 .team-container {
@@ -123,11 +95,45 @@ const onRedEnter = makeEnterHandler(
 .team-entry {
   flex: 1;
   width: 100%;
+  /* Center-out pop-in: entries with a lower --enter-order (nearer the center
+     logo) reveal first. Runs once on mount; because it's a class-driven
+     animation (not an inline transition) Vue's per-frame style patches of the
+     entry — from live damage updates — don't interrupt or reset it. */
+  opacity: 0;
+  animation: teamfight-entry-pop 0.3s ease forwards;
+  animation-delay: calc(0.5s + var(--enter-order, 0) * 0.1s);
+}
+
+@keyframes teamfight-entry-pop {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .teamfight-logo {
   margin-top: auto;
   height: 100px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.teamfight-logo-emblem {
+  width: 44px;
+  height: 44px;
+}
+
+.teamfight-logo-lockup {
+  width: 84px;
+  object-fit: contain;
 }
 
 .slide-down-enter-active {

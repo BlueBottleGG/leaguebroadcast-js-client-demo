@@ -24,6 +24,11 @@ const timers = new Map<number, number>()
 let batchCount = 0
 let batchResetTimer: number | undefined
 
+function isGrompKill(event: killFeedEvent): boolean {
+  const { alias, name } = event.victim
+  return /^sru_gromp/i.test(alias) || /\bgromp\b/i.test(name)
+}
+
 function addEntry(entry: KillEntry) {
   entries.value.push(entry)
 
@@ -49,6 +54,8 @@ function addEntry(entry: KillEntry) {
 
 const unsub = client.onIngameEvents({
   onKillFeedEvent(event: killFeedEvent) {
+    if (isGrompKill(event)) return
+
     // Stagger simultaneous events by delaying their insertion into the list
     clearTimeout(batchResetTimer)
     batchResetTimer = setTimeout(() => {

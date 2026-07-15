@@ -1,13 +1,24 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useClient } from '@/client'
 import { type killFeedEvent } from '@bluebottle_gg/league-broadcast-client'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
+import scuttleIcon from '@/assets/scuttle.png'
 
-defineProps<{
+const props = defineProps<{
   event: killFeedEvent
 }>()
 
 const client = useClient()
+
+const isScuttle = computed(() => {
+  const victim = props.event.victim
+  return /^sru_crab/i.test(victim.name) || /^sru_crab/i.test(victim.alias)
+})
+
+const victimIcon = computed(() =>
+  isScuttle.value ? scuttleIcon : client.getCacheUrl(props.event.victim.squareImg),
+)
 </script>
 
 <template>
@@ -43,9 +54,10 @@ const client = useClient()
 
     <!-- Victim -->
     <img
-      :src="client.getCacheUrl(event.victim.squareImg)"
+      :src="victimIcon"
       class="champ-icon victim-icon"
-      :alt="event.victim.name"
+      :class="{ 'objective-icon': isScuttle }"
+      :alt="isScuttle ? 'Scuttle Crab' : event.victim.name"
       @error="handleImageError"
       @load="handleImageLoad"
     />
@@ -60,7 +72,7 @@ const client = useClient()
   justify-content: flex-end;
   gap: 4px;
   padding: 4px 8px 4px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   backdrop-filter: blur(4px);
   width: 100%;
 }
@@ -95,7 +107,7 @@ const client = useClient()
   width: 44px;
   height: 44px;
   object-fit: cover;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
 }
 
@@ -125,5 +137,12 @@ const client = useClient()
 
 .victim-icon {
   filter: grayscale(0.5);
+}
+
+.victim-icon.objective-icon {
+  padding: 5px;
+  object-fit: contain;
+  background: rgb(0 0 0 / 0.42);
+  filter: none;
 }
 </style>

@@ -13,21 +13,29 @@ const isInGame = useIsInGame()
 
 <style scoped>
 /*
- * Single element — diagonal blue (top-left) → red (bottom-right) gradient,
+ * Single element — diagonal brand-accent gradient,
  * masked so only the border ring is visible and the center is fully transparent.
  * Safe for OBS browser-source overlays with no chroma key required.
  */
 .minimap-frame {
   pointer-events: none;
 
-  /* The colour fill: diagonal blue → red */
+  /*
+     * The colour fill: brand accent fading through black at the diagonal.
+     * --accent-reach (registered below) sets where the accent hands over to
+     * black; animating it makes the two corner fills slowly swell and recede.
+     */
   background: linear-gradient(
-    45deg in oklab,
-    var(--blue-team-color) 0%,
-    rgba(0, 0, 0, 1) 45%,
-    rgba(0, 0, 0, 1) 55%,
-    var(--red-team-color) 100%
+    var(--accent-angle) in oklab,
+    var(--broadcast-accent) 0%,
+    rgba(0, 0, 0, 1) var(--accent-reach),
+    rgba(0, 0, 0, 1) calc(100% - var(--accent-reach)),
+    var(--broadcast-accent) 100%
   );
+  /* different periods so the two motions drift in and out of phase */
+  animation:
+    accent-breathe 20s ease-in-out infinite,
+    accent-drift 33s ease-in-out infinite;
 
   /*
      * Mask: opaque around the edges, fully transparent in the center.
@@ -53,5 +61,58 @@ const isInGame = useIsInGame()
   -webkit-mask-repeat: no-repeat, no-repeat;
   -webkit-mask-composite: xor;
   border: 2px solid rgba(0, 0, 0, 1);
+}
+
+/*
+ * Registered so the gradient stop interpolates smoothly (plain custom
+ * properties snap between keyframes instead of animating).
+ * 45% matches the previous static gradient — that is the resting state.
+ */
+@property --accent-reach {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 45%;
+}
+
+/* Gradient direction — animating it slides the bright spots along the edges */
+@property --accent-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 45deg;
+}
+
+/*
+ * Slow breathing of the corner colours: the accent pulls back along the
+ * diagonal, then swells out to its resting reach again. Kin to the power play
+ * sheen, but it animates the frame's own fill instead of layering a band on top.
+ */
+@keyframes accent-breathe {
+  0%,
+  100% {
+    --accent-reach: 45%;
+  }
+
+  50% {
+    --accent-reach: 34%;
+  }
+}
+
+/*
+ * Slow wander of the highlight point: tilting the gradient slides the two
+ * bright corners back and forth along the frame edges.
+ */
+@keyframes accent-drift {
+  0%,
+  100% {
+    --accent-angle: 45deg;
+  }
+
+  30% {
+    --accent-angle: 64deg;
+  }
+
+  70% {
+    --accent-angle: 26deg;
+  }
 }
 </style>
