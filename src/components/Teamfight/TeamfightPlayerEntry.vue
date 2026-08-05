@@ -116,6 +116,7 @@ const xpPct = computed(() => {
         :img="client.getCacheUrl(spellR?.assets?.iconAsset)"
         show-timer
         :skilled="spellR?.level > 0"
+        :is-toggled="spellR?.isToggled"
         :total-cooldown="spellR?.totalCooldown"
         class="champion-icon rounded-full"
         style="--cooldown-font-size: 32px"
@@ -129,6 +130,7 @@ const xpPct = computed(() => {
       :img="client.getCacheUrl(spellD?.assets?.iconAsset)"
       show-timer
       skilled
+      :is-toggled="spellD?.isToggled"
       :total-cooldown="spellD?.totalCooldown"
       class="spell-icon area-spell1"
     />
@@ -137,6 +139,7 @@ const xpPct = computed(() => {
       :img="client.getCacheUrl(spellF?.assets?.iconAsset)"
       show-timer
       skilled
+      :is-toggled="spellF?.isToggled"
       :total-cooldown="spellF?.totalCooldown"
       class="spell-icon area-spell2"
     />

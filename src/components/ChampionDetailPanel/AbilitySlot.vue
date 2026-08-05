@@ -34,6 +34,7 @@ const hasCharges = computed(() => (props.ability?.charges ?? 0) > 0)
       show-timer
       :skilled="skilled"
       dim-unskilled
+      :is-toggled="ability?.isToggled"
     />
     <span class="charge-badge" v-if="hasCharges">{{ ability?.charges }}</span>
     <span class="level-badge" v-if="showLevel && (ability?.level ?? 0) > 0">{{

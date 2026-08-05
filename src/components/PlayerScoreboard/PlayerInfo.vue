@@ -129,6 +129,7 @@ const resourceColor = computed(() => {
           :img="client.getCacheUrl(summonerOne?.assets?.iconAsset)"
           show-timer
           skilled
+          :is-toggled="summonerOne?.isToggled"
         />
         <SpellWithCooldown
           class="w-full aspect-square flex-1 min-h-0 max-h-[50%]"
@@ -137,6 +138,7 @@ const resourceColor = computed(() => {
           :img="client.getCacheUrl(summonerTwo?.assets?.iconAsset)"
           show-timer
           skilled
+          :is-toggled="summonerTwo?.isToggled"
         />
       </div>
     </div>
@@ -197,6 +199,7 @@ const resourceColor = computed(() => {
           :img="client.getCacheUrl(ultimate?.assets?.iconAsset)"
           show-timer
           :skilled="(ultimate?.level ?? 0) > 0"
+          :is-toggled="ultimate?.isToggled"
         />
         <span
           class="player-name-text"

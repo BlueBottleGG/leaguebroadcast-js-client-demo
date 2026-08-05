@@ -14,6 +14,8 @@ const props = withDefaults(
     skilled?: boolean
     /** When true, render the icon grayed out (instead of hidden) while unskilled. */
     dimUnskilled?: boolean
+    /** Toggle-able spell currently switched on — draws the sweeping white rim. */
+    isToggled?: boolean
   }>(),
   {
     img: '',
@@ -22,6 +24,7 @@ const props = withDefaults(
     showTimer: true,
     skilled: false,
     dimUnskilled: false,
+    isToggled: false,
   },
 )
 
@@ -64,6 +67,7 @@ const elapsedDegrees = computed(() => {
       @error="handleImageError"
       @load="handleImageLoad"
     />
+    <span v-if="isToggled" class="toggle-glow" aria-hidden="true"></span>
   </div>
 </template>
 
@@ -99,5 +103,82 @@ const elapsedDegrees = computed(() => {
     1px 1px 0 #000;
 
   transform: translateY(-2px);
+}
+
+/* Toggled-on rim: the same swirl the scoreboard uses for baron+elder, in white and pulled
+   inside the icon so it reads as the spell itself being lit rather than a border around it. */
+.toggle-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.55);
+}
+
+.toggle-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--spell-toggle-angle),
+    transparent 0deg 70deg,
+    rgba(255, 255, 255, 0.85) 115deg,
+    #fff 145deg,
+    rgba(255, 255, 255, 0.85) 175deg,
+    transparent 220deg 360deg
+  );
+  mask:
+    linear-gradient(
+      to bottom,
+      #000 2px,
+      transparent 0,
+      transparent calc(100% - 2px),
+      #000 calc(100% - 2px)
+    ),
+    linear-gradient(
+      to right,
+      #000 2px,
+      transparent 0,
+      transparent calc(100% - 2px),
+      #000 calc(100% - 2px)
+    );
+  mask-composite: add;
+  -webkit-mask:
+    linear-gradient(
+      to bottom,
+      #000 2px,
+      transparent 0,
+      transparent calc(100% - 2px),
+      #000 calc(100% - 2px)
+    ),
+    linear-gradient(
+      to right,
+      #000 2px,
+      transparent 0,
+      transparent calc(100% - 2px),
+      #000 calc(100% - 2px)
+    );
+  -webkit-mask-composite: source-over;
+  animation: spell-toggle-swirl 2.4s linear infinite;
+}
+
+@property --spell-toggle-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes spell-toggle-swirl {
+  to {
+    --spell-toggle-angle: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle-glow::before {
+    animation: none;
+  }
 }
 </style>
