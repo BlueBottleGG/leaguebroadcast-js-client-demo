@@ -11,13 +11,10 @@ const props = withDefaults(
     showLevel?: boolean
     /** Border/accent variant. */
     variant?: 'ability' | 'summoner'
-    /** When true, the cooldown sweep snaps instantly instead of animating (e.g. on player switch). */
-    noTransition?: boolean
   }>(),
   {
     showLevel: false,
     variant: 'ability',
-    noTransition: false,
   },
 )
 
@@ -37,7 +34,6 @@ const hasCharges = computed(() => (props.ability?.charges ?? 0) > 0)
       show-timer
       :skilled="skilled"
       dim-unskilled
-      :no-transition="noTransition"
     />
     <span class="charge-badge" v-if="hasCharges">{{ ability?.charges }}</span>
     <span class="level-badge" v-if="showLevel && (ability?.level ?? 0) > 0">{{

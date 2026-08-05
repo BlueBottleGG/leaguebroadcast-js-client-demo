@@ -10,6 +10,7 @@ import {
 } from '@bluebottle_gg/league-broadcast-client'
 import { useClient } from '@/client'
 import { useIngameSelector } from '@/composables/useIngame'
+import { useGameClock } from '@/composables/useGameClock'
 import { playerDisplayName } from '@/utils/playerDisplayName'
 import ProgressBar from '../PlayerScoreboard/ProgressBar.vue'
 import StatCell from './StatCell.vue'
@@ -18,7 +19,10 @@ import HealthBar from './HealthBar.vue'
 import { useDamageTracker } from './useDamageTracker'
 
 const detail = useIngameSelector((s) => s.gameData.championDetail)
-const gameTime = useIngameSelector((s) => s.gameData.gameTime)
+const gameTime = useGameClock()
+// The damage tracker only needs coarse timestamps for its burst window, so it stays on the
+// once-a-second state clock rather than re-running its bookkeeping on every animation frame.
+const trackerTime = useIngameSelector((s) => s.gameData.gameTime)
 // championDetailData carries no XP, so the level-progress bar is sourced from the tab list,
 // matched to the shown champion by display name (with a champion-asset fallback).
 const tabs = useIngameSelector((s) => s.gameData.tabs)
@@ -26,7 +30,7 @@ const client = useClient()
 const detailPlayerName = computed(() => playerDisplayName(detail.value))
 
 const damageTracker = useDamageTracker()
-watch([detail, gameTime], ([d, t]) => damageTracker.update(d, t), { immediate: true })
+watch([detail, trackerTime], ([d, t]) => damageTracker.update(d, t), { immediate: true })
 
 // Snap the HP/resource/XP bars instantly (no width transition) for one render whenever the
 // shown player changes, so switching cameras doesn't animate from the previous player's values.
@@ -309,14 +313,12 @@ function runeIcon(rune: championRuneStat): string {
           :ability="ability"
           show-level
           variant="ability"
-          :no-transition="snapBars"
         />
         <AbilitySlot
           v-for="(spell, idx) in [summonerOne, summonerTwo]"
           :key="'s' + idx"
           :ability="spell"
           variant="summoner"
-          :no-transition="snapBars"
         />
         <span class="kda">{{ detail.kills }} / {{ detail.deaths }} / {{ detail.assists }}</span>
       </div>

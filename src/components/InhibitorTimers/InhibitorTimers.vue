@@ -10,6 +10,7 @@ import {
   type teamWithMembers,
 } from '@bluebottle_gg/league-broadcast-client'
 import { useIngameSelector } from '@/composables/useIngame'
+import { useGameClock } from '@/composables/useGameClock'
 import TopIcon from '@/assets/lane/top-placeholder-cropped.svg?url'
 import MidIcon from '@/assets/lane/mid-placeholder-cropped.svg?url'
 import BotIcon from '@/assets/lane/bot-placeholder-cropped.svg?url'
@@ -30,7 +31,18 @@ type TeamTimerGroup = {
 }
 
 const inhibitors = useIngameSelector((s) => s.gameData.inhibitors ?? [])
-const gameTime = useIngameSelector((s) => s.gameData.gameTime)
+const gameTime = useGameClock()
+
+/**
+ * Resolution the timers are read at. The bar crosses its track over a five-minute respawn —
+ * well under a pixel a second — and the text only shows whole seconds, so quarter-second
+ * steps are everything the display can resolve. Reading through this instead of the raw
+ * clock keeps the whole list off the per-frame render path.
+ */
+const TIMER_RESOLUTION_SECONDS = 0.25
+const displayTime = computed(
+  () => Math.floor(gameTime.value / TIMER_RESOLUTION_SECONDS) * TIMER_RESOLUTION_SECONDS,
+)
 const scoreboard = useIngameSelector((s) => s.gameData.scoreboard)
 const teams = useIngameSelector((s) => s.gameData.teams ?? [])
 
@@ -82,7 +94,7 @@ function teamColor(group: TeamTimerGroup): string {
 }
 
 function isTimerActive(data: iObjectiveRespawnData): boolean {
-  return (data.timeAlive ?? 0) > gameTime.value
+  return (data.timeAlive ?? 0) > displayTime.value
 }
 
 function inhibitorSlots(team: teamInhibitorData): InhibitorSlot[] {
@@ -132,8 +144,8 @@ function progressWidth(timer: InhibitorSlot): string {
     0,
     Math.min(
       100,
-      (getRemaining(timer.data.timeAlive, gameTime.value) /
-        Math.max(1, (timer.data.timeAlive ?? gameTime.value) - timer.data.timeDestroy)) *
+      (getRemaining(timer.data.timeAlive, displayTime.value) /
+        Math.max(1, (timer.data.timeAlive ?? displayTime.value) - timer.data.timeDestroy)) *
         100,
     ),
   )}%`
@@ -141,7 +153,7 @@ function progressWidth(timer: InhibitorSlot): string {
 
 function formattedRemaining(timer: InhibitorSlot): string {
   if (!isTimerActive(timer.data)) return '---'
-  const remaining = getRemaining(timer.data.timeAlive, gameTime.value)
+  const remaining = getRemaining(timer.data.timeAlive, displayTime.value)
   const safeRemaining = Math.max(0, remaining)
   const minutes = Math.floor(safeRemaining / 60)
   const seconds = Math.floor(safeRemaining % 60)

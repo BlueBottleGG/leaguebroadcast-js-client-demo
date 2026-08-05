@@ -14,7 +14,7 @@ import { useClient } from '@/client'
 import { playerDisplayName } from '@/utils/playerDisplayName'
 import ProgressBar from './ProgressBar.vue'
 import LevelUpNotification from './LevelUpNotification.vue'
-import { useIngameSelector } from '@/composables/useIngame'
+import { useGameClock } from '@/composables/useGameClock'
 
 const props = defineProps<{
   scoreboardPlayer?: ingameScoreboardBottomPlayerData
@@ -26,7 +26,7 @@ const props = defineProps<{
 }>()
 
 const client = useClient()
-const gameTime = useIngameSelector((s) => s.gameData.gameTime)
+const gameTime = useGameClock()
 
 const shutdown = computed(() => {
   if (!props.scoreboardPlayer) return undefined

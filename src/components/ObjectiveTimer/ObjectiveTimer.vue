@@ -16,17 +16,18 @@ import FireDragon from '@/assets/dragon/fire.png'
 import WaterDragon from '@/assets/dragon/water.png'
 import ElderDragon from '@/assets/dragon/elder.png'
 import FadeTransition from '../../transitions/FadeTransition.vue'
+import { useGameClock } from '@/composables/useGameClock'
 
 const props = withDefaults(
   defineProps<{
     objectiveData?: iObjectiveRespawnData
-    gameTime?: number
   }>(),
   {
     objectiveData: undefined,
-    gameTime: undefined,
   },
 )
+
+const gameTime = useGameClock()
 
 const objectiveType = computed(() => {
   if (!props.objectiveData) return undefined
@@ -37,15 +38,15 @@ const objectiveType = computed(() => {
 })
 
 const respawnTimeRemaining = computed(() => {
-  if (
-    !props.objectiveData ||
-    props.objectiveData.timeAlive === undefined ||
-    props.gameTime === undefined
-  )
-    return undefined
-  const time = getRemaining(props.objectiveData.timeAlive, props.gameTime)
+  if (!props.objectiveData || props.objectiveData.timeAlive === undefined) return undefined
+  const time = getRemaining(props.objectiveData.timeAlive, gameTime.value)
   return time > 0 ? time : 0
 })
+
+// Quantized so the template never reads the continuously-advancing remaining time directly.
+const textWidth = computed(() =>
+  respawnTimeRemaining.value !== undefined && respawnTimeRemaining.value > 0 ? '5rem' : '0px',
+)
 const formattedRespawnTime = computed(() => {
   if (respawnTimeRemaining.value === undefined) return ''
   const time = respawnTimeRemaining.value
@@ -126,9 +127,7 @@ const objectiveIcon = computed(() => {
 
       <div
         class="respawn-timer-text-container"
-        :style="{
-          width: respawnTimeRemaining !== undefined && respawnTimeRemaining > 0 ? '5rem' : '0px',
-        }"
+        :style="{ width: textWidth }"
       >
         <p class="respawn-timer-text">
           {{ formattedRespawnTime }}

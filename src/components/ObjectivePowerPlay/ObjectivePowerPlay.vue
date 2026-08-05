@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useIngameSelector } from '@/composables/useIngame'
+import { useGameClock } from '@/composables/useGameClock'
 import { Team, type ingameObjectivePowerPlay } from '@bluebottle_gg/league-broadcast-client'
 import { computed, ref, watch } from 'vue'
 import Baron from '@/assets/baron/baron.png'
@@ -18,7 +18,7 @@ const props = withDefaults(
     mirror: false,
   },
 )
-const gameTime = useIngameSelector((s) => s.gameData.gameTime)
+const gameTime = useGameClock()
 const hasPowerPlay = computed(() => {
   return (
     props.powerPlay !== undefined &&
@@ -46,6 +46,13 @@ function formatGoldDiff(gold: number) {
 }
 
 const powerPlayProgress = computed(() => getPowerPlayProgress(props.powerPlay))
+
+// The template reads the bar through this rather than the raw progress: tenth-of-a-percent
+// steps are sub-pixel on the track, while the unrounded value changes every animation frame.
+const timerBarWidth = computed(() => {
+  if (props.type !== 'baron' && props.type !== 'dragon') return '0%'
+  return `${((1 - powerPlayProgress.value) * 100).toFixed(1)}%`
+})
 const timeRemaining = computed(() => {
   if (!hasPowerPlay.value) return 0
   const remaining = props.powerPlay!.timeEnd - gameTime.value
@@ -132,14 +139,7 @@ watch(hasPowerPlay, (newVal, oldVal) => {
             <div
               class="power-play-timer-bar"
               :class="{ elder: props.type === 'dragon', baron: props.type === 'baron' }"
-              :style="{
-                width:
-                  props.type === 'baron'
-                    ? `${(1 - powerPlayProgress) * 100}%`
-                    : props.type === 'dragon'
-                      ? `${(1 - powerPlayProgress) * 100}%`
-                      : '0%',
-              }"
+              :style="{ width: timerBarWidth }"
             ></div>
           </div>
         </div>

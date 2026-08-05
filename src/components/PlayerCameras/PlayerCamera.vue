@@ -10,7 +10,7 @@ import {
   getRemaining,
 } from '@bluebottle_gg/league-broadcast-client'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useIngameSelector } from '@/composables/useIngame'
+import { useGameClock } from '@/composables/useGameClock'
 import { usePlayerCameraRoster } from '@/composables/usePlayerCameraRoster'
 import { useDirectorCameraFocus } from '@/composables/useDirectorCameraFocus'
 import VdoNinjaFrame from './VdoNinjaFrame.vue'
@@ -24,7 +24,7 @@ const props = defineProps<{
 }>()
 
 const client = useClient()
-const gameTime = useIngameSelector((s) => s.gameData.gameTime)
+const gameTime = useGameClock()
 const rosters = usePlayerCameraRoster()
 const playersOnTeam = computed(() => rosters.value[props.team] ?? [])
 

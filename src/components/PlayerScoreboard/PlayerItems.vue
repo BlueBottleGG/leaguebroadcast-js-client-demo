@@ -6,6 +6,7 @@ import {
   getTrinket,
   ingameScoreboardBottomData,
   ingameScoreboardBottomPlayerData,
+  isPlayerDead,
   tabPlayer,
   type itemWithAsset,
   type perkInfoV2,
@@ -14,15 +15,20 @@ import { computed } from 'vue'
 import ItemWithCooldown from './ItemWithCooldown.vue'
 import RoleQuestSlot from './RoleQuestSlot.vue'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
+import { useGameClock } from '@/composables/useGameClock'
 
 const props = defineProps<{
   scoreboardPlayer?: ingameScoreboardBottomPlayerData
   tabPlayer?: tabPlayer
   mirror?: boolean
-  grayscale?: boolean
 }>()
 
 const client = useClient()
+const gameTime = useGameClock()
+
+// Derived here rather than passed down, so the scoreboard root does not have to read the
+// clock — and rebuild every player's vnodes — on every animation frame.
+const grayscale = computed(() => isPlayerDead(props.scoreboardPlayer, gameTime.value))
 
 const roleQuest = computed(() => {
   if (!props.scoreboardPlayer) return undefined

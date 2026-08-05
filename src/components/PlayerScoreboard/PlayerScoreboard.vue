@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { playerUpdateEvent, isPlayerDead } from '@bluebottle_gg/league-broadcast-client'
+import { playerUpdateEvent } from '@bluebottle_gg/league-broadcast-client'
 import PlayerItems from './PlayerItems.vue'
 import { useIngameSelector } from '@/composables/useIngame'
 import PlayerInfo from './PlayerInfo.vue'
@@ -11,7 +11,6 @@ import { useNotificationQueue } from '@/composables/useNotificationQueue'
 
 const scoreboard = useIngameSelector((s) => s.gameData.scoreboardBottom)
 const tabs = useIngameSelector((s) => s.gameData.tabs)
-const gameTime = useIngameSelector((s) => s.gameData.gameTime)
 const client = useClient()
 
 const levelUpQueue = useNotificationQueue(2000)
@@ -81,7 +80,6 @@ onUnmounted(() => {
             style="grid-area: order-items"
             :scoreboard-player="scoreboard?.teams[0]?.players[i - 1]"
             :tab-player="tabs?.['Order']?.players[i - 1]"
-            :grayscale="isPlayerDead(scoreboard?.teams[0]?.players[i - 1], gameTime)"
           />
           <PlayerInfo
             style="grid-area: order-info"
@@ -110,7 +108,6 @@ onUnmounted(() => {
             :scoreboard-player="scoreboard?.teams[1]?.players[i - 1]"
             :tab-player="tabs?.['Chaos']?.players[i - 1]"
             mirror
-            :grayscale="isPlayerDead(scoreboard?.teams[1]?.players[i - 1], gameTime)"
           />
           <!-- Single item-buy overlay per side, spanning both items+info columns -->
           <ItemBuyNotification

@@ -7,11 +7,12 @@ import ChampionDetailPanel from '../ChampionDetailPanel/ChampionDetailPanel.vue'
 import InhibitorTimers from '../InhibitorTimers/InhibitorTimers.vue'
 import FadeTransition from '../../transitions/FadeTransition.vue'
 import { useIngameSelector } from '@/composables/useIngame'
+import { useGameClock } from '@/composables/useGameClock'
 import { useRoute } from 'vue-router'
 
 const isInGame = useIsInGame()
 const inhibitors = useIngameSelector((s) => s.gameData.inhibitors ?? [])
-const gameTime = useIngameSelector((s) => s.gameData.gameTime)
+const gameTime = useGameClock()
 const championDetail = useIngameSelector((s) => s.gameData.championDetail)
 const route = useRoute()
 

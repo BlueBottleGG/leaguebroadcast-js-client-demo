@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
 import { getRemaining } from '@bluebottle_gg/league-broadcast-client'
-import { useIngameSelector } from '@/composables/useIngame'
+import { useGameClock } from '@/composables/useGameClock'
 import { computed } from 'vue'
 import FadeTransition from '../../transitions/FadeTransition.vue'
 
@@ -25,28 +25,35 @@ const props = withDefaults(
   },
 )
 
-const gameTime = useIngameSelector((s) => s.gameData.gameTime)
+const gameTime = useGameClock()
 
 const remaining = computed(() => getRemaining(props.readyAt, gameTime.value))
 
-const cooldownPercent = computed(() => {
+// Everything the template reads is quantized to what is actually visible — whole degrees of
+// sweep (sub-pixel at icon size) and whole seconds — so a slot only re-renders when it
+// changes on screen rather than on every animation frame.
+const onCooldown = computed(() => remaining.value > 0)
+const secondsLeft = computed(() => Math.ceil(remaining.value))
+
+const elapsedDegrees = computed(() => {
   if (!props.readyAt || !props.totalCooldown) {
     return 0
   }
-  return Math.min(100, Math.max(0, (1 - remaining.value / props.totalCooldown) * 100))
+  const elapsed = 1 - remaining.value / props.totalCooldown
+  return Math.round(360 * Math.min(1, Math.max(0, elapsed)))
 })
 </script>
 
 <template>
   <div class="relative overflow-hidden">
     <div
-      v-if="remaining > 0"
+      v-if="onCooldown"
       class="absolute h-full w-full timer-fill"
-      :style="{ '--cooldown-fill': cooldownPercent * 3.6 + `deg` }"
+      :style="{ '--cooldown-fill': elapsedDegrees + `deg` }"
     ></div>
     <FadeTransition>
-      <p class="cooldown-text" v-if="showTimer && remaining > 0 && remaining <= 10">
-        {{ Math.ceil(remaining) }}
+      <p class="cooldown-text" v-if="showTimer && secondsLeft > 0 && secondsLeft <= 10">
+        {{ secondsLeft }}
       </p>
     </FadeTransition>
     <img
@@ -71,7 +78,6 @@ const cooldownPercent = computed(() => {
     transparent 0deg var(--cooldown-fill),
     rgba(0, 0, 0, 0.7) var(--cooldown-fill) 360deg
   );
-  transition: --cooldown-fill 1s linear;
 }
 
 .cooldown-text {
@@ -93,13 +99,5 @@ const cooldownPercent = computed(() => {
     1px 1px 0 #000;
 
   transform: translateY(-2px);
-}
-
-@property --cooldown-fill {
-  syntax: '<angle>';
-  /* its type */
-  inherits: false;
-  initial-value: 0deg;
-  /* the initial value */
 }
 </style>

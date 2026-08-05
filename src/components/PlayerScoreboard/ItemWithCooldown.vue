@@ -1,14 +1,11 @@
 <script setup lang="ts">
 import { useClient } from '@/client'
-import {
-  getItemCooldownFraction,
-  isItemOnCooldown,
-  getItemCooldownRemaining,
-} from '@bluebottle_gg/league-broadcast-client'
+import { computed } from 'vue'
+import { getItemCooldownFraction } from '@bluebottle_gg/league-broadcast-client'
 import type { itemWithAsset } from '@bluebottle_gg/league-broadcast-client'
 import FadeTransition from '../../transitions/FadeTransition.vue'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
-import { useIngameSelector } from '@/composables/useIngame'
+import { useGameClock } from '@/composables/useGameClock'
 
 defineOptions({ inheritAttrs: false })
 
@@ -24,7 +21,7 @@ const props = withDefaults(
 )
 
 const client = useClient()
-const gameTime = useIngameSelector((s) => s.gameData.gameTime)
+const gameTime = useGameClock()
 
 function getItemIcon(item: itemWithAsset): string {
   return client.getCacheUrl(item.assetUrl)
@@ -53,26 +50,17 @@ function getItemText(item: itemWithAsset): string {
   return item.count.toString()
 }
 
-function getCooldownOverlayStyle(item: itemWithAsset) {
-  const fraction = getItemCooldownFraction(item, gameTime.value)
-  if (fraction >= 1) {
-    return {}
-  }
-  const elapsedAngle = 360 * fraction
-  return {
-    background: `conic-gradient(from 0deg, transparent ${elapsedAngle}deg, rgba(0,0,0,0.6) ${elapsedAngle}deg)`,
-  }
-}
-
-function getCooldownRotationStyle(item: itemWithAsset) {
-  const fraction = getItemCooldownFraction(item, gameTime.value)
-  if (fraction >= 1) {
-    return `rotate(0deg)`
-  }
-
-  const rotation = 360 - 360 * fraction
-  return `rotate(${rotation}deg)`
-}
+/**
+ * Degrees of the sweep already elapsed, or `null` while the item is ready.
+ *
+ * Read through one rounded value rather than off the clock directly: the template then
+ * only re-renders when the sweep actually moves a whole degree (sub-pixel at icon size),
+ * instead of on every animation frame for every item in the scoreboard.
+ */
+const elapsedDegrees = computed(() => {
+  const fraction = getItemCooldownFraction(props.item, gameTime.value)
+  return fraction >= 1 ? null : Math.round(360 * fraction)
+})
 
 function getVisionScore() {
   if (props.visionScore === undefined) {
@@ -112,13 +100,18 @@ function getStacks() {
       />
 
       <!-- Cooldown overlay + timer clipped to icon bounds -->
-      <div class="cooldown-clip" v-if="isItemOnCooldown(item, gameTime)">
-        <div :style="getCooldownOverlayStyle(item)" class="cooldown"></div>
+      <div class="cooldown-clip" v-if="elapsedDegrees !== null">
+        <div
+          class="cooldown"
+          :style="{
+            background: `conic-gradient(from 0deg, transparent ${elapsedDegrees}deg, rgba(0,0,0,0.6) ${elapsedDegrees}deg)`,
+          }"
+        ></div>
         <div class="cooldown-timer">
           <div class="cooldown-timer-line"></div>
           <div
             class="cooldown-timer-hand"
-            :style="{ transform: getCooldownRotationStyle(item) }"
+            :style="{ transform: `rotate(${360 - elapsedDegrees}deg)` }"
           ></div>
         </div>
       </div>
@@ -230,7 +223,6 @@ function getStacks() {
   width: 1px;
   height: 70.7%;
   transform-origin: 50% 100%;
-  transition: transform 0.5s linear;
   background-color: white;
 }
 </style>
