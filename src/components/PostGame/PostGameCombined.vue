@@ -23,6 +23,7 @@ import PostGameFearlessTree from './PostGameFearlessTree.vue'
  *   matchup-full           → PostGameMatchupTable
  *   matchup-current        → PostGameSeriesOverview
  *   fearless-bans          → PostGameFearlessTree
+ *   fearless-tree          → PostGameFearlessTree
  * Unknown / null componentName renders nothing (fully transparent for OBS).
  */
 
@@ -33,6 +34,7 @@ const VALID_COMPONENT_NAMES = [
   'matchup-full',
   'matchup-current',
   'fearless-bans',
+  'fearless-tree',
 ] as const
 type ComponentName = (typeof VALID_COMPONENT_NAMES)[number]
 
@@ -110,7 +112,10 @@ const screenKey = computed(
       />
       <PostGameMatchupTable v-else-if="componentName === 'matchup-full'" :key="screenKey" />
       <PostGameSeriesOverview v-else-if="componentName === 'matchup-current'" :key="screenKey" />
-      <PostGameFearlessTree v-else-if="componentName === 'fearless-bans'" :key="screenKey" />
+      <PostGameFearlessTree
+        v-else-if="componentName === 'fearless-bans' || componentName === 'fearless-tree'"
+        :key="screenKey"
+      />
     </Transition>
   </div>
 </template>

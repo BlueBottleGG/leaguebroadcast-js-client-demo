@@ -6,9 +6,10 @@ import { useGameState, useIsTestingEnvironment } from '@/composables/useIngame'
 import { useIsChampSelectActive } from '@/composables/useChampSelect'
 
 /**
- * Optional `?bg=` debug background for overlay routes. The default stays
- * transparent (OBS browser source); pass a value while debugging in a normal
- * browser tab:
+ * Optional `?bg=` debug background for overlay routes, dev builds only (a
+ * no-op in production so a leftover `?bg=` in an OBS source URL can't paint
+ * over the game feed). The default stays transparent (OBS browser source);
+ * pass a value while debugging in a normal browser tab:
  *   bg=game    — neutral game-like gradient
  *   bg=pregame — neutral studio-like gradient
  *   bg=dark    — flat dark
@@ -30,6 +31,10 @@ const isTestingEnv = useIsTestingEnvironment()
 const isChampSelectActive = useIsChampSelectActive()
 
 const bg = computed(() => {
+  // Dev-only: a leftover ?bg= in a production OBS source URL must never
+  // paint over the game feed, so the whole component is a no-op in prod builds.
+  if (!import.meta.env.DEV) return ''
+
   // Accept ?bg= in the hash query (.../#/?bg=dark) or the page search string
   // (.../?bg=dark); with hash routing the router only sees the former, so read
   // window.location.search too and the override works wherever it's placed.
@@ -37,13 +42,11 @@ const bg = computed(() => {
   const fromSearch = new URLSearchParams(window.location.search).get('bg') ?? ''
   const param = fromRoute || fromSearch
   if (param) return param === 'none' || param === 'off' ? '' : param
-  if (import.meta.env.DEV) {
-    // during a draft the broadcast shows the studio scene, not gameplay
-    if (isChampSelectActive.value) return 'pregame'
-    // A running mock game reports a regular Running state plus the testing-env
-    // flag; the Mocking state only covers the idle phase between mock games.
-    if (isTestingEnv.value || gameState.value === GameState.Mocking) return 'game'
-  }
+  // during a draft the broadcast shows the studio scene, not gameplay
+  if (isChampSelectActive.value) return 'pregame'
+  // A running mock game reports a regular Running state plus the testing-env
+  // flag; the Mocking state only covers the idle phase between mock games.
+  if (isTestingEnv.value || gameState.value === GameState.Mocking) return 'game'
   return ''
 })
 

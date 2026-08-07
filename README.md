@@ -55,6 +55,14 @@ Not all graphics are available in every LeagueBroadcast tier. The table below sh
 | **Post Game** | Multi-screen recap for match summary, players, matchups, series state, gold, damage, and fearless draft |
 | **Element Pages** | One route per overlay element, rendered at its production position for OBS or focused development |
 
+Post-game content normally appears one of two ways: the caster picks a screen from the
+LeagueBroadcast app, which drives `PostGameCombined.vue` via the backend's
+`active-component-changed` broadcast; or, for local development, the `?pggame=<id>` (load a
+specific game) and `?pgload` (load the current game) query params on the postgame route/element
+trigger the same load without a caster session. A few caster-activatable component ids have no
+component in this demo and render nothing if selected: `postgame-game-stats`,
+`postgame-game-damage`, `postgame-game-gold`, `season-leaderboard`, `season-spotlight`.
+
 ### Debug utilities
 
 | Component | Description |
@@ -62,7 +70,7 @@ Not all graphics are available in every LeagueBroadcast tier. The table below sh
 | **ConnectionStatus** | WebSocket + game-state indicator |
 | **EventLog** | Live scrolling feed of raw game events |
 
-> The debug utilities have their own page: open `/element/debug` during development to get connection diagnostics.
+> The debug utilities have their own page: open `#/ingame/element/debug` during development to get connection diagnostics.
 
 ## Prerequisites
 
@@ -228,22 +236,10 @@ client.onIngameEvents({
 
 ## Testing player cameras (VDO.Ninja)
 
-You can test the full 10-camera setup locally without asking anyone to start a camera. Chromium's fake-webcam flags feed a generated test pattern into real VDO.Ninja streams:
-
-```powershell
-# 1. Serve the app (dev server or a deployed build)
-npm run dev
-
-# 2. Publish 10 dummy camera streams (keeps a browser window open while testing)
-.\tools\start-dummy-cameras.ps1 -Count 10 -BaseUrl "http://localhost:5173"
-```
-
-The script prints two URLs to view the streams:
-
-- **Standalone grid** (`public/camera-test/viewer.html`) — views all streams with the exact URL parameters the overlay uses, without needing the backend. Load it in a browser or an OBS browser source to isolate VDO.Ninja/OBS problems from overlay problems. A green dot per tile shows connection state.
-- **The overlay itself** with `?camtest=<prefix>&camcount=10` appended — rewires every player's `videoStreamUrl` to the dummy streams and forces the camera strip visible. Works with a live/mock game (player names come from the roster) and also without a backend (synthesizes a CAM 1–10 roster).
-
-Use `-Headless` to publish without a visible window, `-Prefix myTest` to pick your own stream IDs (the default is randomized to avoid collisions on the public VDO.Ninja signalling), and `-Server` for a self-hosted VDO.Ninja.
+You can test the camera strip without asking anyone to start a real stream: append
+`?camtest=<prefix>&camcount=10` to the overlay URL to rewire every player's `videoStreamUrl` to
+dummy VDO.Ninja streams and force the camera strip visible. Works with a live/mock game (player
+names come from the roster) and also without a backend (synthesizes a CAM 1–10 roster).
 
 ### OBS browser source checklist
 
@@ -258,7 +254,7 @@ Per [VDO.Ninja's OBS guidance](https://docs.vdo.ninja/common-errors-and-known-is
 
 VDO.Ninja's stock ICE config (several STUN servers + geo-selected TURN servers) exceeds Chromium's 5-server threshold, which slows candidate discovery — multiplied across 10 camera connections. The overlay counters this by pinning a single STUN server (`&stun=stun:stun.l.google.com:19302`) on every view link.
 
-If players and the OBS machine are on the same network (venue LAN) or can otherwise reach each other directly, add **`?camturn=off`** to the overlay URL (and to `viewer.html`) — it appends `&turn=false` so connections skip TURN relays entirely, giving the fastest possible discovery. Don't use it when remote players sit behind strict NATs/firewalls: TURN is the fallback that makes those connections work at all. For recurring remote productions, a [self-hosted TURN server](https://docs.vdo.ninja/advanced-settings/turn-and-stun-parameters/turn) configured directly on the players' stream URLs beats the shared public ones.
+If players and the OBS machine are on the same network (venue LAN) or can otherwise reach each other directly, add **`?camturn=off`** to the overlay URL — it appends `&turn=false` so connections skip TURN relays entirely, giving the fastest possible discovery. Don't use it when remote players sit behind strict NATs/firewalls: TURN is the fallback that makes those connections work at all. For recurring remote productions, a [self-hosted TURN server](https://docs.vdo.ninja/advanced-settings/turn-and-stun-parameters/turn) configured directly on the players' stream URLs beats the shared public ones.
 
 ### Camera delay (syncing cameras with a delayed program feed)
 
@@ -280,9 +276,6 @@ usual "buffering over ~3s hurts audio sync" caveat doesn't apply here.
 > on their stream URLs (a sender-side flag the overlay can't add to a view link); the same
 > `&camdelay` then drives the larger custom buffer. The overlay logs a console warning when
 > `camdelay` is set above 4s.
-
-`camdelay` also works on the standalone `viewer.html` test grid, so you can dial in the
-delay against the dummy cameras before going live.
 
 ## Building for production
 

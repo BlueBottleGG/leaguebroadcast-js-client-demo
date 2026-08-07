@@ -157,25 +157,9 @@ export function useMatchList(): Ref<matchWithGamesAndTeams[]> {
   const client = useClient()
   fetchNowAndOnStatsUpdate(async () => {
     try {
-      if (isBackendMocking(client)) {
-        const range = await client.api.postGame.getMockMatchDataRange(
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-        )
-        value.value = range ?? []
-        return
-      }
-      const range = await client.api.postGame.getMatchDataRange(null, null, null, null, null, null)
-      if (range && range.length > 0) {
-        value.value = range
-        return
-      }
-      // fall back to just the current match
-      const current = await client.api.postGame.getCurrentMatchData()
+      const current = isBackendMocking(client)
+        ? await client.api.postGame.getMockMatchData()
+        : await client.api.postGame.getCurrentMatchData()
       value.value = current ? [current] : []
     } catch (err) {
       console.debug('[useMatchList] fetch failed', err)
