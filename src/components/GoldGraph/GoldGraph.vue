@@ -4,6 +4,7 @@ import { useIngameSelector } from '../../composables/useIngame'
 import { useClient } from '@/client'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
 import SlideTransition from '@/transitions/SlideTransition.vue'
+import { buildGoldHistorySeries } from './goldGraphHistory'
 
 const client = useClient()
 const scoreboard = useIngameSelector((s) => s.gameData.scoreboard)
@@ -11,6 +12,11 @@ const blueTeam = computed(() => scoreboard.value?.teams[0])
 const redTeam = computed(() => scoreboard.value?.teams[1])
 
 const goldGraph = useIngameSelector((s) => s.gameData.goldGraph)
+const previousSeries = computed(() => {
+  const graph = goldGraph.value
+  if (!graph?.showPreviousGames) return []
+  return buildGoldHistorySeries(graph.current, graph.previousGames)
+})
 
 /**
  * Parse the gold data into a per-team gold-difference series suitable for SVG rendering.
@@ -27,7 +33,9 @@ const series = computed(() => {
   if (entries.length < 2) return null
 
   // Team IDs from the data (usually 0 and 1)
-  const teamIds = Object.keys(entries[0]?.teams ?? {}).map(Number)
+  const teamIds = Object.keys(entries[0]?.teams ?? {})
+    .map(Number)
+    .sort((a, b) => a - b)
   if (teamIds.length < 2) return null
 
   const [t0, t1] = teamIds
@@ -45,8 +53,16 @@ const series = computed(() => {
     diff: (e.teams[t0] ?? 0) - (e.teams[t1] ?? 0),
   }))
 
-  const maxTime = points[points.length - 1]?.time ?? 0
-  const maxAbsDiff = Math.max(...points.map((p) => Math.abs(p.diff)), 1)
+  const historicalPoints = previousSeries.value.flatMap((game) => game.points)
+  const maxTime = Math.max(
+    points[points.length - 1]?.time ?? 0,
+    ...historicalPoints.map((point) => point.time),
+  )
+  const maxAbsDiff = Math.max(
+    ...points.map((point) => Math.abs(point.diff)),
+    ...historicalPoints.map((point) => Math.abs(point.diff)),
+    1,
+  )
 
   return { points, maxTime, maxAbsDiff, teamNames, teamIds: [t0, t1] as const }
 })
@@ -112,6 +128,7 @@ watch(
     const changed =
       !prev ||
       prev.points.length !== next.points.length ||
+      prev.maxTime !== next.maxTime ||
       prev.maxAbsDiff !== next.maxAbsDiff ||
       prev.points.at(-1)?.diff !== next.points.at(-1)?.diff
 
@@ -167,6 +184,47 @@ function toSvg(
   const y = MID_Y - (diff / maxAbsDiff) * (GRAPH_HEIGHT / 2)
   return { x, y }
 }
+
+/** Completed games share this chart's time/gold scale and stop at their own final sample. */
+const previousLines = computed(() => {
+  const { maxTime, maxAbsDiff } = animScale.value
+  return previousSeries.value.flatMap((game, index) => {
+    const points = game.points.map((point) => ({
+      ...toSvg(point.time, point.diff, maxTime, maxAbsDiff),
+      diff: point.diff,
+    }))
+    const last = points.at(-1)
+    if (!last) return []
+
+    const nearRightEdge = last.x > WIDTH - 95
+    const winnerTag =
+      (game.winnerSide === 'blue' ? blueTeam.value?.teamTag : redTeam.value?.teamTag) ||
+      game.winnerName
+    const labelOffset = (index % 2) * 9
+    const labelY = Math.max(
+      GRAPH_TOP + 9,
+      Math.min(
+        GRAPH_BOTTOM - 3,
+        last.y + (game.winnerSide === 'blue' ? -5 - labelOffset : 11 + labelOffset),
+      ),
+    )
+
+    return [
+      {
+        key: `game-${game.gameNumber}`,
+        d: points
+          .map((point, pointIndex) => `${pointIndex === 0 ? 'M' : 'L'}${point.x},${point.y}`)
+          .join(' '),
+        end: last,
+        color: game.winnerSide === 'blue' ? 'var(--blue-team-color)' : 'var(--red-team-color)',
+        label: `G${game.gameNumber} · ${winnerTag.toUpperCase()} WON`,
+        labelX: last.x + (nearRightEdge ? -4 : 4),
+        labelY,
+        textAnchor: nearRightEdge ? 'end' : 'start',
+      },
+    ]
+  })
+})
 
 /**
  * Points currently rendered, in SVG coordinates (plus the data diff for
@@ -578,6 +636,21 @@ const verticalLines = computed(() => {
               {{ scaleLabels.bottom }}
             </text>
 
+            <!-- Previous games: lines only, colored by the winner's current side. -->
+            <g v-for="game in previousLines" :key="game.key" class="history-game">
+              <path :d="game.d" fill="none" :stroke="game.color" class="history-line" />
+              <circle :cx="game.end.x" :cy="game.end.y" r="2.5" :fill="game.color" />
+              <text
+                :x="game.labelX"
+                :y="game.labelY"
+                :text-anchor="game.textAnchor"
+                :fill="game.color"
+                class="history-label"
+              >
+                {{ game.label }}
+              </text>
+            </g>
+
             <!-- Data line: colored by leading team -->
             <path
               v-for="(seg, i) in coloredSegments"
@@ -738,6 +811,22 @@ const verticalLines = computed(() => {
   fill: rgba(255, 255, 255, 0.45);
   font-size: 9px;
   font-weight: 800;
+}
+
+.history-line {
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  opacity: 0.72;
+}
+
+.history-label {
+  font-size: 8px;
+  font-weight: 800;
+  paint-order: stroke fill;
+  stroke: #12151a;
+  stroke-width: 3px;
+  stroke-linejoin: round;
 }
 
 .extrema-label {

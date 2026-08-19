@@ -8,8 +8,8 @@ import DamageGraphPanel, { type DamageGraphPanelEntry } from './DamageGraphPanel
 const data = useIngameSelector((state) => state.gameData.teamfightTimeline)
 
 // The backend's latest-teamfight payload includes the same damage composition
-// map used by damageGraph entries. The published 1.5.0 client declaration has
-// not added this player field yet, so keep the compatibility extension local.
+// map used by damageGraph entries. The published 1.12.0 declaration still
+// omits that field, so keep the compatibility extension local for now.
 type TeamfightPlayerWithDamageTypes = teamfightTimelinePlayer & {
   damageByType?: { [key: string]: number }
 }
