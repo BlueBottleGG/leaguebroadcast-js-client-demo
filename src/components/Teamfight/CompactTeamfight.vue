@@ -2,8 +2,8 @@
 import { useIngameSelector } from '@/composables/useIngame'
 import { Team } from '@bluebottle_gg/league-broadcast-client'
 import { computed } from 'vue'
-import brandEmblem from '@/assets/blue_bottle-logo-color-bright_outline.svg?url'
-import leagueBroadcastLogo from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
+import projectLogo from '@/assets/blue_bottle-logo-color-bright_outline.svg?url'
+import broadcastLogo from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
 import TeamfightPlayerEntry from './TeamfightPlayerEntry.vue'
 
 const teamfight = useIngameSelector((state) => state.gameData.teamfightDamageOverview)
@@ -40,8 +40,8 @@ const redOrder = (index: number) => index
         </TeamfightPlayerEntry>
       </div>
       <div class="teamfight-logo">
-        <img :src="brandEmblem" class="teamfight-logo-emblem" alt="BlueBottle" />
-        <img :src="leagueBroadcastLogo" class="teamfight-logo-lockup" alt="League Broadcast" />
+        <img :src="projectLogo" class="teamfight-logo-emblem" alt="BlueBottle" />
+        <img :src="broadcastLogo" class="teamfight-logo-lockup" alt="League Broadcast" />
       </div>
 
       <div class="team-container chaos">

@@ -36,6 +36,15 @@
   height: 260px;
 }
 
+/* Graph-only Gold Graph variant occupying precisely the player-scoreboard slot. */
+#app .overlay-player-scoreboard-gold-graph {
+  position: absolute;
+  bottom: 0px;
+  left: calc(285px + 176px);
+  right: calc(285px + 176px);
+  height: 260px;
+}
+
 #app .overlay-playercameras {
   position: absolute;
   bottom: 0px;

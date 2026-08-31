@@ -15,7 +15,7 @@ const pct = computed(() => {
 })
 
 // no active side → neutral white. NOT accent: the bar sits flush against the
-// team-colored pick-card edges, and accent may never touch a team color (CI).
+// team-colored pick-card edges, so the neutral state stays separate from team state.
 const color = computed(() =>
   props.activeSide === 'blue'
     ? 'var(--blue-team-color)'

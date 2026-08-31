@@ -2,17 +2,11 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "demo-overlay",
+      "name": "dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "autoPort": true,
-      "port": 5173
-    },
-    {
-      "name": "eec-overlay",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "C:/Users/larse/source/repos/BlueBottleGG/leaguebroadcast-client-eec-main"],
-      "port": 5173
+      "port": 5173,
+      "autoPort": true
     }
   ]
 }

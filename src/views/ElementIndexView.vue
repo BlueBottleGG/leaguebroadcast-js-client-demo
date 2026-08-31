@@ -7,19 +7,21 @@ import { elements } from './elements'
     <h1>Overlay elements</h1>
     <p class="hint">
       Every element renders on its own page at its real overlay position, so pages double as
-      per-element OBS browser sources. Add <code>?bg=game</code> (or <code>pregame</code>,
-      <code>dark</code>, any CSS color, or <code>none</code>) to any page for a visible background
-      while debugging — the default is transparent, except during a mock game where a neutral debug
-      gradient appears automatically.
+      per-element OBS browser sources. Add <code>?bg=dark</code> (or any CSS color, or
+      <code>none</code>) to any page for a visible solid background while debugging. The default is
+      transparent.
     </p>
     <p class="hint">
-      <RouterLink to="/?bg=game">Full broadcast</RouterLink> ·
-      <RouterLink to="/ingame?bg=game">ingame overlay</RouterLink>
+      <RouterLink to="/?bg=dark">Full broadcast</RouterLink> ·
+      <RouterLink to="/ingame?bg=dark">ingame overlay</RouterLink> · standalone harnesses with mock
+      data: <a href="/powerplay-preview.html">powerplay-preview</a>,
+      <a href="/goldgraph-preview.html">goldgraph-preview</a>,
+      <a href="/teamfight-preview.html">teamfight-preview</a>
     </p>
 
     <ul class="elements">
       <li v-for="element in elements" :key="element.slug">
-        <RouterLink :to="`/ingame/element/${element.slug}?bg=game`" class="element-link">
+        <RouterLink :to="`/ingame/element/${element.slug}?bg=dark`" class="element-link">
           {{ element.title }}
         </RouterLink>
         <code class="path">/ingame/element/{{ element.slug }}</code>

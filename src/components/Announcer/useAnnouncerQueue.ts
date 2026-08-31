@@ -75,6 +75,11 @@ export function useAnnouncerQueue(options?: {
     return e.source?.champion?.id
   }
 
+  /** Is a FIRST TURRET card on screen or still waiting to be? */
+  function isFirstBrickLive(): boolean {
+    return currentItem?.type === 'FirstBrick' || pending.some((p) => p.type === 'FirstBrick')
+  }
+
   function toActive(item: QueuedItem, branded: boolean): ActiveAnnouncement {
     const src = item.event.source
     const tgt = item.event.target
@@ -147,6 +152,12 @@ export function useAnnouncerQueue(options?: {
 
     const meta = ANNOUNCEMENT_META[type]
     if (!meta) return
+
+    // The first turret emits FirstBrick immediately before its own TowerKill in the same
+    // payload, and the FIRST TURRET card already names that turret — so drop the redundant
+    // follow-up. Checked ahead of the bookkeeping below so a dropped event leaves no trace.
+    if (type === 'TowerKill' && isFirstBrickLive()) return
+
     if (meta.oncePerGame) {
       if (seenOncePerGame.has(type)) return
       seenOncePerGame.add(type)

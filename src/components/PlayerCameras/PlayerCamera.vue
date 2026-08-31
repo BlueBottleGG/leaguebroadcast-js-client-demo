@@ -41,10 +41,9 @@ function isFeedLive(player: teamMember): boolean {
   return !!player.videoStreamUrl && feedConnected.value[player.videoStreamUrl] === true
 }
 
-/** Configured player portrait, independent of the video feed. */
+/** Configured portrait for a player, resolved independently of the video feed. */
 function portraitFor(player: teamMember): string | null {
-  if (player.iconUri) return client.getCacheUrl(player.iconUri) ?? null
-  return null
+  return player.iconUri ? (client.getCacheUrl(player.iconUri) ?? null) : null
 }
 
 /** Shared lane slot chosen by the champion-detail director (null when it has no pick). */
@@ -173,7 +172,6 @@ onUnmounted(() => {
 </template>
 
 <style lang="css" scoped>
-/* The vertical space freed by the square video becomes a project-accent cap. */
 .camera-top-pad {
   flex: 1 1 auto;
   min-height: 8px;
@@ -187,19 +185,14 @@ onUnmounted(() => {
   width: 100%;
   aspect-ratio: 1 / 1;
   flex: none;
-  /* Neutral portrait matte with a restrained project-accent glow. */
-  background:
-    linear-gradient(to bottom, rgb(129 117 255 / 0.45) 0%, transparent 16%),
-    radial-gradient(ellipse 115% 70% at 50% 100%, rgb(129 117 255 / 0.38), transparent 60%),
-    radial-gradient(
-      ellipse 68% 240% at 50% 50%,
-      rgb(196 192 186 / 0.92) 0%,
-      rgb(186 182 176 / 0.85) 60%,
-      rgb(160 155 148 / 0.08) 100%
-    );
+  background: radial-gradient(
+    ellipse 68% 240% at 50% 50%,
+    rgb(196 192 186 / 0.92) 0%,
+    rgb(186 182 176 / 0.85) 60%,
+    rgb(160 155 148 / 0.08) 100%
+  );
 }
 
-/* Compact project-accent name plate with white type. */
 .player-name {
   display: flex;
   align-items: center;
@@ -214,8 +207,6 @@ onUnmounted(() => {
   line-height: 22px;
   text-align: center;
   font-weight: 800;
-  /* Legibility on the accent: a tight shadow to define the glyph edges plus a
-     wider soft one for depth — subtle enough to read as lift, not an outline. */
   text-shadow:
     0 1px 2px rgb(0 0 0 / 0.3),
     0 2px 8px rgb(0 0 0 / 0.2);

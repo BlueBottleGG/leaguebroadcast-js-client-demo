@@ -18,12 +18,20 @@ import ObjectivePowerPlayContainer from '@/components/ObjectivePowerPlay/Objecti
 import Announcer from '@/components/Announcer/Announcer.vue'
 import DebugBackground from '@/components/Debug/DebugBackground.vue'
 
+withDefaults(
+  defineProps<{
+    /** The combined scene owns its background below every phase layer. */
+    showDebugBackground?: boolean
+  }>(),
+  { showDebugBackground: true },
+)
+
 // Individual elements have their own pages under /ingame/element/<name> (index: /ingame/elements).
 </script>
 
 <template>
   <div class="overlay">
-    <DebugBackground />
+    <DebugBackground v-if="showDebugBackground" />
     <!-- Core features available in all tiers -->
     <Scoreboard class="overlay-scoreboard" />
     <PlayerScoreboard class="overlay-playerscoreboard" />
@@ -41,8 +49,8 @@ import DebugBackground from '@/components/Debug/DebugBackground.vue'
     <SmiteReaction class="overlay-smitereaction" />
     <KillFeed class="overlay-killfeed" />
     <Announcer class="overlay-announcer" />
-    <PlayerCameras class="overlay-playercameras" />
-    <GoldGraph class="overlay-bottom" />
+    <!-- <PlayerCameras class="overlay-playercameras" /> -->
+    <GoldGraph class="overlay-player-scoreboard-gold-graph" variant="player-scoreboard" />
     <CompactTeamfight class="overlay-teamfight" />
     <TeamfightPanels class="overlay-teamfight-panels" />
   </div>

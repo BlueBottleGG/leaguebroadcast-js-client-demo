@@ -11,9 +11,14 @@
 import OverlayView from './OverlayView.vue'
 import ChampionSelectScene from '@/components/ChampionSelect/ChampionSelectScene.vue'
 import PostGameScene from '@/components/PostGame/PostGameScene.vue'
+import DebugBackground from '@/components/Debug/DebugBackground.vue'
 </script>
 
 <template>
+  <!-- This must be a sibling of the phase layers. A background inside the
+       in-game layer remains above pre-game even when its own z-index is low,
+       because stacking contexts are ordered as a unit. -->
+  <DebugBackground class="debug-background-layer" />
   <div class="phase-layer postgame-layer">
     <PostGameScene />
   </div>
@@ -21,7 +26,7 @@ import PostGameScene from '@/components/PostGame/PostGameScene.vue'
     <ChampionSelectScene />
   </div>
   <div class="phase-layer ingame-layer">
-    <OverlayView />
+    <OverlayView :show-debug-background="false" />
   </div>
 </template>
 
@@ -36,6 +41,10 @@ import PostGameScene from '@/components/PostGame/PostGameScene.vue'
   width: 1920px;
   height: 1080px;
   isolation: isolate;
+}
+
+.debug-background-layer {
+  z-index: 0;
 }
 
 .postgame-layer {

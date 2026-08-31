@@ -6,39 +6,39 @@ import FadeTransition from '../../transitions/FadeTransition.vue'
 
 const sponsorLogos = [leagueBroadcastLogo, blueBottleLogo]
 const currentLogoIndex = ref(0)
-let rotationTimer: number | undefined
+const logoRotationInterval = 15000 // Rotate logo every 15 seconds
+const rotationTimer = ref<number | null>(null)
 
 onMounted(() => {
-  rotationTimer = window.setInterval(() => {
+  rotationTimer.value = setInterval(() => {
     currentLogoIndex.value = (currentLogoIndex.value + 1) % sponsorLogos.length
-  }, 15000)
+  }, logoRotationInterval)
 })
 
 onUnmounted(() => {
-  if (rotationTimer !== undefined) window.clearInterval(rotationTimer)
+  if (rotationTimer.value !== null) {
+    clearInterval(rotationTimer.value)
+  }
 })
 </script>
 
 <template>
-  <div class="logo-slot">
+  <div class="logo-slot w-full h-full">
     <FadeTransition mode="out-in">
-      <img
-        :key="currentLogoIndex"
-        :src="sponsorLogos[currentLogoIndex]"
-        class="sponsor-logo"
-        alt=""
-      />
+      <img :key="currentLogoIndex" :src="sponsorLogos[currentLogoIndex]" class="sponsor-logo" />
     </FadeTransition>
   </div>
 </template>
 
-<style scoped>
+<style lang="css" scoped>
 .logo-slot {
   display: grid;
-  width: 100%;
-  height: 100%;
-  padding: 13px 24px;
+  grid-template-rows: 100%;
+  grid-template-columns: 100%;
   overflow: hidden;
+  /* Vertical padding cut 18px -> 13px to match the 10px-shorter footer, so the logo's
+     content box (footer height - 2*padding) is unchanged and the mark renders the same size. */
+  padding: 13px 24px;
 }
 
 .sponsor-logo {

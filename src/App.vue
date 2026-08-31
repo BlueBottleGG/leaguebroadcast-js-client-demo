@@ -4,7 +4,8 @@
 
 <style>
 /* Broadcast overlay: transparent, full-viewport, no scrollbars.
-   Routes: / (full broadcast), /ingame (ingame overlay), /pregame (champ select),
+   Routes: / (full broadcast), /ingame (ingame overlay), /pregame (2D champ select),
+   /pregame-3d (3D champ select),
    /ingame/element/<name> (single element), /ingame/elements (index).
    Element positioning lives in views/overlay-layout.css. */
 @layer base {

@@ -16,13 +16,16 @@ const { current, enqueue, resetGame } = useAnnouncerQueue()
 
 const unsub = client.onIngameEvents({
   onAnnouncementEvent(event: announcerEvent) {
-    if (String(event.type) === 'GrompKill' && !showGrompKill.value) return
+    const type = String(event.type)
+    if (type === 'GrompKill' && !showGrompKill.value) return
     enqueue(event)
   },
 })
 
 const stopGameWatch = watch(isInGame, (inGame, wasInGame) => {
-  if (!inGame && wasInGame) resetGame()
+  if (!inGame && wasInGame) {
+    resetGame()
+  }
 })
 
 onUnmounted(() => {

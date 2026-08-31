@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useClient } from '@/client'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
 import type { ActiveAnnouncement } from './useAnnouncerQueue'
-import brandLogo from '@/assets/blue_bottle-logo-color-bright_outline.svg?url'
+import broadcastLogo from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
 
 const props = defineProps<{
   announcement: ActiveAnnouncement
@@ -28,7 +28,7 @@ const teamClass = computed(() => {
     ]"
   >
     <div v-if="announcement.branded" class="brand-chip">
-      <img class="brand-logo" :src="brandLogo" alt="BlueBottle" />
+      <img class="brand-logo" :src="broadcastLogo" alt="League Broadcast" />
     </div>
 
     <img

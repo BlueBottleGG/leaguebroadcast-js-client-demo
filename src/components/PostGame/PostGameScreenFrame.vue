@@ -3,8 +3,7 @@
  * Shared scaffold for the secondary post-game screens (player analysis/stats,
  * matchup grid, series overview, fearless draft/tree). Gives every screen the
  * same scale as the overview (a centred 1560×920 content column), a consistent
- * CI-branded title header with a accent accent, and the bottom-right
- * LeagueBroadcast/project logo lockup — so branding no longer lives in a bottom chip.
+ * Project-accented title header with a bottom-right event/project lockup.
  */
 import PostGameBrandBar from './PostGameBrandBar.vue'
 

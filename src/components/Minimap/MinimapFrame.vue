@@ -13,7 +13,7 @@ const isInGame = useIsInGame()
 
 <style scoped>
 /*
- * Single element — diagonal brand-accent gradient,
+ * Single element — diagonal broadcast-accent gradient,
  * masked so only the border ring is visible and the center is fully transparent.
  * Safe for OBS browser-source overlays with no chroma key required.
  */

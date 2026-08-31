@@ -11,12 +11,13 @@ import {
 import { useClient } from '@/client'
 import { useIngameSelector } from '@/composables/useIngame'
 import { useGameClock } from '@/composables/useGameClock'
-import { playerDisplayName } from '@/utils/playerDisplayName'
 import ProgressBar from '../PlayerScoreboard/ProgressBar.vue'
 import StatCell from './StatCell.vue'
 import AbilitySlot from './AbilitySlot.vue'
 import HealthBar from './HealthBar.vue'
 import { useDamageTracker } from './useDamageTracker'
+import { playerDisplayName } from '@/utils/playerDisplayName'
+import { xpProgressPct } from '@/utils/xpProgress'
 
 const detail = useIngameSelector((s) => s.gameData.championDetail)
 const gameTime = useGameClock()
@@ -93,11 +94,7 @@ const xpPct = computed(() => {
       (d.displayName && p.displayName === d.displayName) ||
       (d.championAssets?.name && p.championAssets?.name === d.championAssets.name),
   )
-  const exp = match?.experience
-  if (!exp) return 0
-  const span = exp.nextLevel - exp.previousLevel
-  if (span <= 0) return 0
-  return Math.min(100, Math.max(0, ((exp.current - exp.previousLevel) / span) * 100))
+  return xpProgressPct(match?.experience)
 })
 
 const resourceColor = computed(() => {

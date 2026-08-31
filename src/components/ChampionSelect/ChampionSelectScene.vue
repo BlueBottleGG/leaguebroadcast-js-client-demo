@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onUnmounted, ref, watch } from 'vue'
 import { type championData, type championSelectTeam } from '@bluebottle_gg/league-broadcast-client'
 import { useChampSelectData, useIsChampSelectActive } from '@/composables/useChampSelect'
 import { useClient } from '@/client'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
 import { playActionSound, preloadActionSounds } from '@/composables/useActionSounds'
+import { useEventBranding } from '@/composables/useEventBranding'
 import PhaseTimerBar from './PhaseTimerBar.vue'
 import BanRow from './BanRow.vue'
 import PickCard from './PickCard.vue'
@@ -12,9 +13,22 @@ import CenterPanel from './CenterPanel.vue'
 import FearlessBanBar from './FearlessBanBar.vue'
 import CoachDisplay from './CoachDisplay.vue'
 import EventBrandPlate from './EventBrandPlate.vue'
+import { CHAMPION_SELECT_TIMING, milliseconds } from './championSelectTiming'
+
+// Three.js is a sizeable optional layer. Load it only while champion select is
+// actually rendered so the regular in-game overlay does not pay that startup cost.
+const ChampionStage3D = defineAsyncComponent(() => import('./3d/ChampionStage3D.vue'))
+
+const props = withDefaults(
+  defineProps<{
+    enable3d?: boolean
+  }>(),
+  { enable3d: false },
+)
 
 const isActive = useIsChampSelectActive()
 const data = useChampSelectData()
+const { eventLogoUrl, eventName, reload: reloadEventBranding } = useEventBranding()
 
 // warm the pick/ban cues so the first lock-in doesn't decode late
 preloadActionSounds()
@@ -24,6 +38,25 @@ preloadActionSounds()
 // then drop `rendered` so the scene plays its leave transition on a clean
 // layout. Defined here; the exit watcher lives below the lock-in machinery.
 const rendered = ref(isActive.value)
+const sceneMounted = ref(rendered.value)
+interface ChampionStageHandle {
+  beginExit: () => void
+}
+const championStage = ref<ChampionStageHandle>()
+const transitionDuration = computed(() =>
+  props.enable3d
+    ? {
+        enter: CHAMPION_SELECT_TIMING.scene.threeDimensional.enterMs,
+        leave: CHAMPION_SELECT_TIMING.scene.threeDimensional.leaveMs,
+      }
+    : {
+        enter: CHAMPION_SELECT_TIMING.scene.twoDimensional.enterMs,
+        leave: CHAMPION_SELECT_TIMING.scene.twoDimensional.leaveMs,
+      },
+)
+const sceneTimingStyle = computed(() => ({
+  '--ban-flash-duration': milliseconds(CHAMPION_SELECT_TIMING.lockIn.banFlashMs),
+}))
 
 // Render from a frozen copy of the last active snapshot. On exit the backend
 // clears champSelectData (empty teams, no timer) — reading it live would empty
@@ -159,8 +192,8 @@ const cacheUrl = (path?: string) => client.getCacheUrl(path)
 
 // -- lock-in flashes ----------------------------------------------------------
 // A ban locking splashes the banned champion across the whole team pick area,
-// graying out before it leaves. A pick locking briefly expands that card to
-// cover the team area, then collapses back.
+// graying out before it leaves. A pick locking briefly presents a full-area
+// overlay of that card, then crossfades back to the fixed row.
 
 interface BanFlash {
   champ: championData
@@ -173,6 +206,16 @@ const banFlash = ref<{ blue: BanFlash | null; red: BanFlash | null }>({
 const featuredPick = ref<{ blue: number | null; red: number | null }>({
   blue: null,
   red: null,
+})
+const blueFeaturedCard = computed(() => {
+  const index = featuredPick.value.blue
+  const slot = index === null ? undefined : blueTeam.value?.slots?.[index]
+  return slot && index !== null ? { index, slot } : null
+})
+const redFeaturedCard = computed(() => {
+  const index = featuredPick.value.red
+  const slot = index === null ? undefined : redTeam.value?.slots?.[index]
+  return slot && index !== null ? { index, slot } : null
 })
 
 let flashKey = 0
@@ -190,7 +233,7 @@ onUnmounted(() => {
 function triggerBanFlash(side: 'blue' | 'red', champ: championData) {
   playActionSound('ban')
   banFlash.value = { ...banFlash.value, [side]: { champ, key: ++flashKey } }
-  schedule(`ban-${side}`, 2200, () => {
+  schedule(`ban-${side}`, CHAMPION_SELECT_TIMING.lockIn.banFlashMs, () => {
     banFlash.value = { ...banFlash.value, [side]: null }
   })
 }
@@ -198,7 +241,7 @@ function triggerPickFeature(side: 'blue' | 'red', index: number) {
   playActionSound('pick')
   featuredPick.value = { ...featuredPick.value, [side]: index }
   // long enough to read the champion statistics shown on the expanded card
-  schedule(`pick-${side}`, 2400, () => {
+  schedule(`pick-${side}`, CHAMPION_SELECT_TIMING.lockIn.pickFeatureMs, () => {
     featuredPick.value = { ...featuredPick.value, [side]: null }
   })
 }
@@ -236,6 +279,21 @@ function watchLocks(side: 'blue' | 'red', team: () => championSelectTeam | undef
 watchLocks('blue', () => blueTeam.value)
 watchLocks('red', () => redTeam.value)
 
+function beginSceneLeave(): void {
+  // Vue freezes the leaving subtree as soon as `rendered` flips. Cue the
+  // Three.js camera first so its long-shot move starts on the same frame as
+  // the 2D leave choreography.
+  championStage.value?.beginExit()
+  rendered.value = false
+}
+
+function finishSceneLeave(): void {
+  // `v-show` keeps the Three.js component and its animation loop alive while
+  // the leave classes run. Only dispose it after the camera has reached the
+  // long shot and the blackout has finished.
+  if (!rendered.value) sceneMounted.value = false
+}
+
 // Drive the render gate off isActive, handling early exits: if a lock-in
 // flourish is still playing, cut it immediately (cancel its timers, clear the
 // state so the featured card collapses back), then hold briefly for the layout
@@ -243,6 +301,8 @@ watchLocks('red', () => redTeam.value)
 watch(isActive, (active) => {
   clearTimeout(exitTimer)
   if (active) {
+    void reloadEventBranding()
+    sceneMounted.value = true
     rendered.value = true
     return
   }
@@ -252,121 +312,198 @@ watch(isActive, (active) => {
     featuredPick.value.blue !== null ||
     featuredPick.value.red !== null
   if (!midLockIn) {
-    rendered.value = false
+    beginSceneLeave()
     return
   }
   Object.values(lockTimers).forEach(clearTimeout)
   banFlash.value = { blue: null, red: null }
   featuredPick.value = { blue: null, red: null }
-  // let the featured card collapse (flex-grow 0.35s) before the leave starts
+  // Let the compositor-only featured overlay return before the leave starts.
   exitTimer = setTimeout(() => {
-    rendered.value = false
-  }, 380)
+    beginSceneLeave()
+  }, CHAMPION_SELECT_TIMING.lockIn.exitSettleMs)
 })
 </script>
 
 <template>
-  <Transition name="scene" :duration="{ enter: 2100, leave: 1000 }">
-    <div v-if="rendered" class="champ-select-scene">
-      <div class="fearless-wrap">
-        <FearlessBanBar :blue-team="blueTeam" :red-team="redTeam" />
-      </div>
-
-      <div class="bottom-block">
-        <div class="ban-strip">
-          <div class="ban-cluster">
-            <BanRow :bans="blueBans" team="blue" />
-            <CoachDisplay :team="blueTeam" side="blue" />
-          </div>
-          <EventBrandPlate :meta-data="frozenData.metaData" />
-          <div class="ban-cluster">
-            <CoachDisplay :team="redTeam" side="red" />
-            <BanRow :bans="redBans" team="red" />
-          </div>
-        </div>
-
-        <PhaseTimerBar
-          :time-remaining="timer.timeRemaining"
-          :phase-duration="timer.phaseDuration"
-          :active-side="phaseTimerSide"
+  <template v-if="sceneMounted">
+    <Transition appear name="scene" :duration="transitionDuration" @after-leave="finishSceneLeave">
+      <div
+        v-show="rendered"
+        class="champ-select-scene"
+        :class="{ 'champ-select-scene--3d': props.enable3d }"
+        :style="sceneTimingStyle"
+      >
+        <ChampionStage3D
+          v-if="props.enable3d"
+          ref="championStage"
+          :active-side="activeSide"
+          :blue-team="blueTeam"
+          :draft-active="isActive"
+          :event-logo-url="eventLogoUrl"
+          :event-name="eventName"
+          :red-team="redTeam"
+          :blue-bans="blueBans"
+          :red-bans="redBans"
         />
 
-        <div class="pick-strip">
-          <div class="picks blue">
-            <PickCard
-              v-for="(slot, i) in blueTeam.slots ?? []"
-              :key="`blue-${i}`"
-              :slot="slot"
-              team="blue"
-              :team-data="blueTeam"
-              :index="i"
-              :grow-active="1.6"
-              :grow-inactive="blueGrowInactive"
-              :featured="featuredPick.blue === i"
-              :collapsed="featuredPick.blue !== null && featuredPick.blue !== i"
-              :class="{ 'edge-left': i === 0 }"
+        <div v-if="props.enable3d" class="scene-blackout" />
+
+        <div class="fearless-wrap">
+          <FearlessBanBar :blue-team="blueTeam" :red-team="redTeam" />
+        </div>
+
+        <div class="bottom-block">
+          <div class="ban-strip">
+            <div class="ban-cluster">
+              <BanRow :bans="blueBans" team="blue" />
+              <CoachDisplay :team="blueTeam" side="blue" />
+            </div>
+            <EventBrandPlate
+              :meta-data="frozenData.metaData"
+              :event-logo-url="eventLogoUrl"
+              :event-name="eventName"
             />
-            <Transition name="ban-flash">
-              <div v-if="banFlash.blue" :key="banFlash.blue.key" class="ban-flash team-blue">
-                <img
-                  class="bf-art"
-                  :src="cacheUrl(banFlash.blue.champ.splashCenteredImg)"
-                  :alt="banFlash.blue.champ.name"
-                  @error="handleImageError"
-                  @load="handleImageLoad"
-                />
-                <div class="bf-scrim" />
-                <div class="bf-label">
-                  <span class="bf-banned">BANNED</span>
-                  <span class="bf-name">{{ banFlash.blue.champ.name }}</span>
-                </div>
-              </div>
-            </Transition>
+            <div class="ban-cluster">
+              <CoachDisplay :team="redTeam" side="red" />
+              <BanRow :bans="redBans" team="red" />
+            </div>
           </div>
 
-          <CenterPanel :blue-team="blueTeam" :red-team="redTeam" :best-of="bestOf" />
+          <PhaseTimerBar
+            :time-remaining="timer.timeRemaining"
+            :phase-duration="timer.phaseDuration"
+            :active-side="phaseTimerSide"
+          />
 
-          <div class="picks red">
-            <PickCard
-              v-for="(slot, i) in redTeam.slots ?? []"
-              :key="`red-${i}`"
-              :slot="slot"
-              team="red"
-              :team-data="redTeam"
-              :index="i"
-              :grow-active="1.6"
-              :grow-inactive="redGrowInactive"
-              :featured="featuredPick.red === i"
-              :collapsed="featuredPick.red !== null && featuredPick.red !== i"
-              :class="{ 'edge-right': i === (redTeam.slots?.length ?? 0) - 1 }"
-            />
-            <Transition name="ban-flash">
-              <div v-if="banFlash.red" :key="banFlash.red.key" class="ban-flash team-red">
-                <img
-                  class="bf-art"
-                  :src="cacheUrl(banFlash.red.champ.splashCenteredImg)"
-                  :alt="banFlash.red.champ.name"
-                  @error="handleImageError"
-                  @load="handleImageLoad"
+          <div class="pick-strip">
+            <div class="picks blue">
+              <PickCard
+                v-for="(slot, i) in blueTeam.slots ?? []"
+                :key="`blue-${i}`"
+                :slot="slot"
+                team="blue"
+                :team-data="blueTeam"
+                :index="i"
+                :grow-active="1.6"
+                :grow-inactive="blueGrowInactive"
+                :collapsed="featuredPick.blue !== null"
+                :class="{ 'edge-left': i === 0 }"
+              />
+              <Transition name="pick-feature">
+                <PickCard
+                  v-if="blueFeaturedCard"
+                  :key="`feature-blue-${blueFeaturedCard.index}`"
+                  class="pick-feature edge-left"
+                  :slot="blueFeaturedCard.slot"
+                  team="blue"
+                  :team-data="blueTeam"
+                  :index="blueFeaturedCard.index"
+                  :grow-active="1"
+                  :grow-inactive="1"
+                  featured
                 />
-                <div class="bf-scrim" />
-                <div class="bf-label">
-                  <span class="bf-banned">BANNED</span>
-                  <span class="bf-name">{{ banFlash.red.champ.name }}</span>
+              </Transition>
+              <Transition name="ban-flash">
+                <div v-if="banFlash.blue" :key="banFlash.blue.key" class="ban-flash team-blue">
+                  <img
+                    class="bf-art bf-art-muted"
+                    :src="cacheUrl(banFlash.blue.champ.splashCenteredImg)"
+                    alt=""
+                    aria-hidden="true"
+                    @error="handleImageError"
+                    @load="handleImageLoad"
+                  />
+                  <img
+                    class="bf-art bf-art-color"
+                    :src="cacheUrl(banFlash.blue.champ.splashCenteredImg)"
+                    :alt="banFlash.blue.champ.name"
+                    @error="handleImageError"
+                    @load="handleImageLoad"
+                  />
+                  <div class="bf-scrim" />
+                  <div class="bf-label">
+                    <span class="bf-banned">BANNED</span>
+                    <span class="bf-name">{{ banFlash.blue.champ.name }}</span>
+                  </div>
                 </div>
-              </div>
-            </Transition>
+              </Transition>
+            </div>
+
+            <CenterPanel :blue-team="blueTeam" :red-team="redTeam" :best-of="bestOf" />
+
+            <div class="picks red">
+              <PickCard
+                v-for="(slot, i) in redTeam.slots ?? []"
+                :key="`red-${i}`"
+                :slot="slot"
+                team="red"
+                :team-data="redTeam"
+                :index="i"
+                :grow-active="1.6"
+                :grow-inactive="redGrowInactive"
+                :collapsed="featuredPick.red !== null"
+                :class="{ 'edge-right': i === (redTeam.slots?.length ?? 0) - 1 }"
+              />
+              <Transition name="pick-feature">
+                <PickCard
+                  v-if="redFeaturedCard"
+                  :key="`feature-red-${redFeaturedCard.index}`"
+                  class="pick-feature edge-right"
+                  :slot="redFeaturedCard.slot"
+                  team="red"
+                  :team-data="redTeam"
+                  :index="redFeaturedCard.index"
+                  :grow-active="1"
+                  :grow-inactive="1"
+                  featured
+                />
+              </Transition>
+              <Transition name="ban-flash">
+                <div v-if="banFlash.red" :key="banFlash.red.key" class="ban-flash team-red">
+                  <img
+                    class="bf-art bf-art-muted"
+                    :src="cacheUrl(banFlash.red.champ.splashCenteredImg)"
+                    alt=""
+                    aria-hidden="true"
+                    @error="handleImageError"
+                    @load="handleImageLoad"
+                  />
+                  <img
+                    class="bf-art bf-art-color"
+                    :src="cacheUrl(banFlash.red.champ.splashCenteredImg)"
+                    :alt="banFlash.red.champ.name"
+                    @error="handleImageError"
+                    @load="handleImageLoad"
+                  />
+                  <div class="bf-scrim" />
+                  <div class="bf-label">
+                    <span class="bf-banned">BANNED</span>
+                    <span class="bf-name">{{ banFlash.red.champ.name }}</span>
+                  </div>
+                </div>
+              </Transition>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  </Transition>
+    </Transition>
+  </template>
 </template>
 
 <style scoped>
 .champ-select-scene {
   position: absolute;
   inset: 0;
+  pointer-events: none;
+}
+
+.scene-blackout {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: #000000;
+  opacity: 0;
   pointer-events: none;
 }
 
@@ -380,6 +517,7 @@ watch(isActive, (active) => {
   top: 0;
   left: 0;
   width: 1920px;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -394,6 +532,7 @@ watch(isActive, (active) => {
   bottom: 0;
   left: 0;
   width: 1920px;
+  z-index: 2;
 }
 
 /* three columns: ban clusters pushed to the edges, the sponsor plate centered
@@ -436,6 +575,30 @@ watch(isActive, (active) => {
   position: relative;
   display: flex;
   height: 100%;
+  overflow: hidden;
+  contain: layout paint;
+}
+
+.picks > .pick-feature {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  flex: none;
+}
+
+.pick-feature-enter-active,
+.pick-feature-leave-active {
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pick-feature-enter-from,
+.pick-feature-leave-to {
+  opacity: 0;
+  transform: scale(0.985);
 }
 
 /* ban lock-in: the banned champion splashes across the whole team pick area,
@@ -443,7 +606,7 @@ watch(isActive, (active) => {
 .ban-flash {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 3;
   overflow: hidden;
   background: rgb(0 0 0 / 0.85);
   pointer-events: none;
@@ -455,20 +618,36 @@ watch(isActive, (active) => {
   height: 100%;
   object-fit: cover;
   object-position: center 25%;
-  animation: bf-gray 2.2s ease-out forwards;
+  animation: bf-zoom var(--ban-flash-duration) ease-out forwards;
+  will-change: transform;
 }
-@keyframes bf-gray {
+.bf-art-muted {
+  filter: saturate(0) brightness(0.55);
+}
+.bf-art-color {
+  animation:
+    bf-zoom var(--ban-flash-duration) ease-out forwards,
+    bf-color-fade var(--ban-flash-duration) ease-out forwards;
+  will-change: transform, opacity;
+}
+@keyframes bf-zoom {
   0% {
-    filter: saturate(1) brightness(1);
     transform: scale(1.12);
   }
   35% {
-    filter: saturate(1) brightness(1);
     transform: scale(1.04);
   }
   100% {
-    filter: saturate(0) brightness(0.55);
     transform: scale(1);
+  }
+}
+@keyframes bf-color-fade {
+  0%,
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 .bf-scrim {
@@ -540,6 +719,36 @@ watch(isActive, (active) => {
    then picks stagger, the timer wipes, bans pop, and finally coaches + the
    fearless bar (game by game, champ by champ within each game). Leave mirrors
    it in reverse, compressed. Timing is set by the :duration prop. */
+.scene-enter-from .champion-stage {
+  opacity: 0;
+  transform: scale(1.025);
+}
+.scene-enter-active .champion-stage {
+  transition:
+    opacity 0.75s ease-out,
+    transform 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* The 3D route owns its entrance with a real camera move. Keep the canvas at
+   full scale and reveal the initial overhead composition through a black
+   curtain instead of applying the legacy flat layer fade. */
+.champ-select-scene--3d.scene-enter-from .champion-stage,
+.champ-select-scene--3d.scene-leave-to .champion-stage {
+  opacity: 1;
+  transform: none;
+}
+.champ-select-scene--3d.scene-enter-active .champion-stage,
+.champ-select-scene--3d.scene-leave-active .champion-stage {
+  transition: none;
+}
+
+.champ-select-scene--3d.scene-enter-from .scene-blackout {
+  opacity: 1;
+}
+.champ-select-scene--3d.scene-enter-active .scene-blackout {
+  transition: opacity 0.72s ease-in 0.14s;
+}
+
 .scene-enter-from .bottom-block {
   transform: translateY(105%);
 }
@@ -567,9 +776,8 @@ watch(isActive, (active) => {
 .scene-enter-active .pick-card {
   transition:
     opacity 0.4s ease,
-    transform 0.5s cubic-bezier(0.34, 1.5, 0.64, 1),
-    flex-grow 0.35s ease;
-  transition-delay: calc(0.4s + var(--ci, 0) * 0.1s), calc(0.4s + var(--ci, 0) * 0.1s), 0s;
+    transform 0.5s cubic-bezier(0.34, 1.5, 0.64, 1);
+  transition-delay: calc(0.4s + var(--ci, 0) * 0.1s), calc(0.4s + var(--ci, 0) * 0.1s);
 }
 
 /* 3 — timer bar wipes out from the center */
@@ -627,6 +835,31 @@ watch(isActive, (active) => {
 
 /* leave: reverse — fearless + coaches, bans, timer, picks, then the stage
    drops taking the center panel with it */
+.scene-leave-active .champion-stage {
+  transition:
+    opacity 0.55s ease 0.35s,
+    transform 0.65s ease-in 0.35s;
+}
+.scene-leave-to .champion-stage {
+  opacity: 0;
+  transform: scale(1.015);
+}
+
+.champ-select-scene--3d.scene-leave-active .scene-blackout {
+  transition: opacity 0.6s ease-in 0.55s;
+}
+.champ-select-scene--3d.scene-leave-to .scene-blackout {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .champ-select-scene--3d.scene-enter-active .scene-blackout,
+  .champ-select-scene--3d.scene-leave-active .scene-blackout {
+    transition-duration: 0.16s;
+    transition-delay: 0s;
+  }
+}
+
 .scene-leave-active .fearless-wrap {
   transition:
     transform 0.3s cubic-bezier(0.5, 0, 0.75, 0),

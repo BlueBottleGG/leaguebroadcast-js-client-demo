@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { useIngameSelector } from '@/composables/useIngame'
-import BlueBottleLogo from '@/assets/blue_bottle-logo-color-bright_outline.svg'
+import projectLogo from '@/assets/blue_bottle-logo-color-bright_outline.svg?url'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import FadeTransition from '../../transitions/FadeTransition.vue'
 import { useClient } from '@/client'
+import { useEventBranding } from '@/composables/useEventBranding'
 
 const client = useClient()
 const patch = useIngameSelector((s) => s.gameData.patch)
 const shortPatch = computed(() => patch.value?.split('.').slice(0, 2).join('.') || '')
-const otherInfo = ['LEAGUE BROADCAST']
+const { eventName } = useEventBranding()
 const matchName = ref<string | null>(null)
 const allInfo = computed(() => [
-  ...otherInfo,
+  ...(eventName.value ? [eventName.value] : ['LEAGUE BROADCAST']),
   ...(matchName.value ? [matchName.value] : []),
   `PATCH ${shortPatch.value}`,
 ])
@@ -43,7 +44,7 @@ onUnmounted(() => {
 
 <template>
   <div class="flex flex-row justify-between items-center pl-2.5 pr-10 py-0.5 w-full h-full">
-    <BlueBottleLogo class="h-7" aria-label="BlueBottle" />
+    <img :src="projectLogo" class="h-7 w-7 object-contain" alt="BlueBottle" />
     <div class="info-text-slot">
       <FadeTransition mode="out-in">
         <span :key="currentInfoIndex" class="patch-text">{{ currentInfo }}</span>

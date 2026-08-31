@@ -32,11 +32,11 @@
   --elder-color: oklch(0.8741 0.1329 177.69);
   --baron-color-subtle: oklch(0.581767 0.275459 301.0491 / 0.3);
   --elder-color-subtle: oklch(0.8741 0.1329 177.69 / 0.3);
-  /* BlueBottle project accent. Team colors remain reserved for game state. */
+  /* Project accent. Team colors remain reserved for game state. */
   --broadcast-accent: #8175ff;
   --border-color: color-mix(in oklab, var(--broadcast-accent) 72%, transparent);
   /* Whole-pixel coverage survives browser capture and stream resampling more
-     reliably than the previous 1px/1.5px accent outlines. */
+     reliably than the previous 1px/1.5px brand outlines. */
   --brand-border-width: 2px;
   /* Two-level surface system for every translucent panel scrim, so
      "more/less transparent" feedback is a one-line change:

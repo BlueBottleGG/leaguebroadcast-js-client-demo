@@ -125,10 +125,7 @@ const objectiveIcon = computed(() => {
         <img :src="objectiveIcon" alt="Objective Icon" />
       </div>
 
-      <div
-        class="respawn-timer-text-container"
-        :style="{ width: textWidth }"
-      >
+      <div class="respawn-timer-text-container" :style="{ width: textWidth }">
         <p class="respawn-timer-text">
           {{ formattedRespawnTime }}
         </p>

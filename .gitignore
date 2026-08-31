@@ -35,6 +35,9 @@ coverage
 # Vitest
 __screenshots__/
 
+# Local client source files (brand guidelines and uncurated source assets)
+/*_Assets/
+
 # Vite
 *.timestamp-*-*.mjs
 ai-memory.db

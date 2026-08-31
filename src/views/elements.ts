@@ -89,7 +89,7 @@ export const elements: ElementDef[] = [
     slug: 'lframe',
     title: 'L-Frame / Sponsors',
     parts: [{ component: LFrame, class: 'overlay-lframe' }],
-    demoParams: ['championinfo=cutout — force the transparent cutout instead of champion details'],
+    demoParams: [],
   },
   {
     slug: 'power-play',
@@ -157,6 +157,17 @@ export const elements: ElementDef[] = [
     slug: 'gold-graph',
     title: 'Gold Graph',
     parts: [{ component: GoldGraph, class: 'overlay-bottom' }],
+  },
+  {
+    slug: 'gold-graph-player-scoreboard',
+    title: 'Gold Graph (Player Scoreboard)',
+    parts: [
+      {
+        component: GoldGraph,
+        props: { variant: 'player-scoreboard' },
+        class: 'overlay-player-scoreboard-gold-graph',
+      },
+    ],
   },
   {
     slug: 'teamfight',

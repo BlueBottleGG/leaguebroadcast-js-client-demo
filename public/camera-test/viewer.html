@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>VDO.Ninja camera viewer test grid</title>
+    <style>
+        body {
+            margin: 0;
+            background: #111;
+            color: #eee;
+            font-family: system-ui, sans-serif;
+        }
+
+        header {
+            padding: 10px 16px;
+            background: #1b1b1b;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        header code {
+            color: #8175ff;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            padding: 8px;
+        }
+
+        .cell {
+            background: #000;
+            border: 1px solid #333;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .cell .label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            font-size: 12px;
+            background: #1b1b1b;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #c33;
+        }
+
+        .dot.on {
+            background: #3c3;
+        }
+
+        .cell iframe {
+            display: block;
+            width: 100%;
+            aspect-ratio: 16/9;
+            border: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <strong>Camera viewer test grid</strong> — views the same streams with the same URL parameters the overlay
+        uses, without needing the backend. Load this in a browser or an OBS browser source to isolate
+        VDO.Ninja/OBS problems from overlay problems. The dot turns green when VDO.Ninja reports the connection
+        as established (<code>view-connection</code> iframe API event). Query params:
+        <code>?prefix=broadcastCam&amp;count=10&amp;server=https://vdo.ninja</code>.
+    </header>
+    <div class="grid" id="grid"></div>
+
+    <script>
+        const params = new URLSearchParams(location.search);
+        const prefix = params.get("prefix") || "broadcastCam";
+        const count = Number(params.get("count") || 10) || 10;
+        const server = params.get("server") || "https://vdo.ninja";
+
+        // Keep in sync with DEFAULT_VIEW_PARAMS in src/components/PlayerCameras/vdoNinja.ts
+        let VIEW_PARAMS = "cover&videobitrate=500&viewheight=360&noaudio&cleanoutput&autorecover=1&retry&retrytimeout=5000&stun=stun:stun.l.google.com:19302";
+        // ?camturn=off skips TURN servers for the fastest ICE discovery (LAN setups).
+        const camturn = params.get("camturn");
+        if (camturn === "off" || camturn === "false") VIEW_PARAMS += "&turn=false";
+        // ?camdelay=<seconds> adds a viewer-side playout buffer to sync cameras with a delayed program feed.
+        const camdelay = Number(params.get("camdelay"));
+        if (Number.isFinite(camdelay) && camdelay > 0) {
+            VIEW_PARAMS += "&buffer=" + Math.min(Math.round(camdelay * 1000), 300000);
+        }
+
+        const grid = document.getElementById("grid");
+        const frames = new Map();
+
+        for (let i = 1; i <= count; i++) {
+            const id = `${prefix}${i}`;
+            const viewUrl = `${server}/?view=${encodeURIComponent(id)}&${VIEW_PARAMS}`;
+
+            const cell = document.createElement("div");
+            cell.className = "cell";
+
+            const label = document.createElement("div");
+            label.className = "label";
+            const dot = document.createElement("span");
+            dot.className = "dot";
+            const name = document.createElement("span");
+            name.textContent = id;
+            label.appendChild(dot);
+            label.appendChild(name);
+            cell.appendChild(label);
+
+            const iframe = document.createElement("iframe");
+            iframe.allow = "autoplay; fullscreen";
+            iframe.src = viewUrl;
+            cell.appendChild(iframe);
+
+            grid.appendChild(cell);
+            frames.set(iframe.contentWindow, dot);
+            iframe.addEventListener("load", () => frames.set(iframe.contentWindow, dot));
+        }
+
+        window.addEventListener("message", (e) => {
+            const dot = frames.get(e.source);
+            if (!dot || typeof e.data !== "object" || e.data === null) return;
+            if (e.data.action === "view-connection") {
+                dot.classList.toggle("on", e.data.value === true);
+            } else if (e.data.action === "video-element-created") {
+                dot.classList.add("on");
+            }
+        });
+    </script>
+</body>
+
+</html>

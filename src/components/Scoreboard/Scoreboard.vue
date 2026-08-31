@@ -5,7 +5,7 @@ import TeamRow from './TeamRow.vue'
 import TeamObjectiveRow from './TeamObjectiveRow.vue'
 import DragonBuffBanner from './DragonBuffBanner.vue'
 import { GameState } from '@bluebottle_gg/league-broadcast-client'
-import brandEmblem from '@/assets/blue_bottle-logo-color-bright_outline.svg?url'
+import projectLogo from '@/assets/blue_bottle-logo-color-bright_outline.svg?url'
 
 const scoreboard = useIngameSelector((s) => s.gameData.scoreboard)
 const players = useIngameSelector((s) => s.gameData.scoreboardBottom)
@@ -36,7 +36,7 @@ const gameTime = computed(() => {
             :best-of="scoreboard.bestOf"
             :enemy-team-gold="red.gold"
           />
-          <img :src="brandEmblem" class="center-logo" alt="BlueBottle" />
+          <img :src="projectLogo" class="center-logo" alt="BlueBottle" />
           <TeamRow
             style="grid-column: 3"
             :team="red"
@@ -60,7 +60,7 @@ const gameTime = computed(() => {
 
 <style scoped>
 .scoreboard {
-  /* Bebas Neue runs wider than the old condensed display font — the bar gets
+  /* The display font runs wider than the old condensed font — the bar gets
      80px extra so team names keep room next to the fixed stat columns */
   width: 880px;
   display: flex;

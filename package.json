@@ -10,11 +10,15 @@
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
     "test:gold-graph": "node --experimental-strip-types src/components/GoldGraph/__tests__/goldGraphHistory.test.ts",
+    "test:champion-stage": "node --experimental-strip-types src/components/ChampionSelect/3d/__tests__/championStageState.test.ts",
+    "test:event-branding": "node --experimental-strip-types src/utils/__tests__/backendAssets.test.ts",
+    "test:champion-select": "run-p test:champion-stage test:event-branding",
     "format": "oxfmt src/"
   },
   "dependencies": {
     "@bluebottle_gg/league-broadcast-client": "^1.12.0",
     "pinia": "^3.0.4",
+    "three": "^0.185.1",
     "vite-plugin-webfont-dl": "^3.12.0",
     "vue": "^3.5.31",
     "vue-router": "^5.0.4"
@@ -23,6 +27,7 @@
     "@tailwindcss/vite": "^4.2.2",
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^24.12.0",
+    "@types/three": "^0.185.0",
     "@vitejs/plugin-vue": "^6.0.5",
     "@vue/tsconfig": "^0.9.1",
     "autoprefixer": "^10.5.0",

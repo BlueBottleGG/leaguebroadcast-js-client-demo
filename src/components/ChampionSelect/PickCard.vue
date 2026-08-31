@@ -154,19 +154,11 @@ const stats = computed(() => {
   background: rgb(0 0 0 / 0.78);
   border-radius: 6px 6px 0 0;
   flex-grow: var(--grow-inactive, 1);
-  /* Base rule governs the *shrink back to normal* — most importantly the
-     featured card settling down after a lock. A longer, gently-decelerating
-     curve keeps that big collapse from feeling snappy. Grow-in states below
-     override this to stay quick. */
-  transition: flex-grow 0.7s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/* Growing INTO a bigger state (activate / feature / collapse) stays snappy —
-   only the return to normal uses the slow base curve above. */
-.pick-card.active,
-.pick-card.featured,
-.pick-card.collapsed {
-  transition: flex-grow 0.35s ease;
+  /* Width states change once. Animating flex-grow forced layout for every card
+     on every frame; lock-in motion now lives on the full-width overlay. */
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
 }
 
 .pick-card.active {
@@ -209,14 +201,9 @@ const stats = computed(() => {
   border-top-right-radius: 0;
 }
 
-/* pick lock-in: the locked card sweeps over the whole team area for a moment
-   (driven by the scene's featuredPick state), the rest shrink away */
-.pick-card.featured {
-  flex-grow: 200;
-}
-
 .pick-card.collapsed {
-  flex-grow: 0.001;
+  opacity: 0;
+  transform: scale(0.985);
 }
 
 .art-wrap {
@@ -331,8 +318,9 @@ const stats = computed(() => {
   box-shadow: inset 0 0 40px 4px var(--red-team-color);
 }
 
-.pick-card.locked {
-  animation: lock-flash 0.6s ease;
+.pick-card.locked .glow {
+  background: rgba(255, 255, 255, 0.72);
+  animation: lock-flash 0.6s ease-out;
 }
 
 @keyframes card-pulse {
@@ -348,11 +336,11 @@ const stats = computed(() => {
 
 @keyframes lock-flash {
   0% {
-    filter: brightness(1.6);
+    opacity: 0.55;
   }
 
   100% {
-    filter: brightness(1);
+    opacity: 0;
   }
 }
 
@@ -427,7 +415,7 @@ const stats = computed(() => {
   text-transform: uppercase;
   /* Fit the name to the card: width budget per char is (card width / length);
      the factor converts that budget into a font-size that fills the card
-     without overflowing — 1.3 is calibrated for Bebas Neue ExtraBold caps, which
+     without overflowing — 1.3 is calibrated for bold display caps, which
      run wider than a condensed display face. Capped at 21px so short names on
      wide active cards don't balloon; floored at 11px so it stays legible. */
   font-size: clamp(11px, calc(130cqw / var(--name-len, 10)), 21px);

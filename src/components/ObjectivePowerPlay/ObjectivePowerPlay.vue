@@ -2,9 +2,10 @@
 import { useGameClock } from '@/composables/useGameClock'
 import { Team, type ingameObjectivePowerPlay } from '@bluebottle_gg/league-broadcast-client'
 import { computed, ref, watch } from 'vue'
+import { usePowerPlaySlot } from '@/composables/usePowerPlayStack'
 import Baron from '@/assets/baron/baron.png'
 import Elder from '@/assets/dragon/elder.png'
-import brandLogo from '@/assets/blue_bottle-logo-color-bright_outline.svg?url'
+import BroadcastLogo from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
 
 const props = withDefaults(
@@ -98,6 +99,14 @@ watch(hasPowerPlay, (newVal, oldVal) => {
     }
   }
 })
+
+/* Publish this card's footprint so overlays anchored below the stack (e.g. the
+   smite reaction card on the Chaos side) can keep clear of it. The active card
+   and the completion popup share the same slot. */
+usePowerPlaySlot(
+  props.team,
+  computed(() => hasPowerPlay.value || showCompletion.value),
+)
 </script>
 
 <template>
@@ -144,10 +153,10 @@ watch(hasPowerPlay, (newVal, oldVal) => {
           </div>
         </div>
 
-        <!-- Project brand rail: enters as a full-card splash, then collapses. -->
+        <!-- Project brand rail: enters as a full-card splash, collapses into a side rail -->
         <div class="brand-rail">
           <p class="presented-by">presented by</p>
-          <img :src="brandLogo" alt="BlueBottle" class="brand-rail-logo" />
+          <img :src="BroadcastLogo" alt="League Broadcast" class="brand-rail-logo" />
         </div>
       </div>
 
@@ -181,13 +190,13 @@ watch(hasPowerPlay, (newVal, oldVal) => {
         </div>
 
         <div class="brand-rail static">
-          <img :src="brandLogo" alt="BlueBottle" class="brand-rail-logo" />
+          <img :src="BroadcastLogo" alt="League Broadcast" class="brand-rail-logo" />
         </div>
 
-        <!-- Project-accent outro wipe. -->
+        <!-- Accent outro: the project color takes over before the card fades out -->
         <div class="completion-splash">
           <p class="presented-by splash-text">presented by</p>
-          <img :src="brandLogo" alt="BlueBottle" class="splash-logo" />
+          <img :src="BroadcastLogo" alt="League Broadcast" class="splash-logo" />
         </div>
       </div>
     </Transition>

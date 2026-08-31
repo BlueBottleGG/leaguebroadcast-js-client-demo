@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { usePlayerStats } from '@/composables/usePostGameScreens'
-import { playerDisplayName } from '@/utils/playerDisplayName'
 import PostGamePlayerIdentity from './PostGamePlayerIdentity.vue'
 import PostGameScreenFrame from './PostGameScreenFrame.vue'
+import { playerDisplayName } from '@/utils/playerDisplayName'
 
 /**
  * Player performance screen: same champion identity block (left) + a single

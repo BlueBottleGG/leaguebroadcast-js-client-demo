@@ -4,8 +4,9 @@ import { useClient } from '@/client'
 import { useIsInGame } from '@/composables/useIngame'
 import { type killFeedEvent } from '@bluebottle_gg/league-broadcast-client'
 import KillFeedEntry from './KillFeedEntry.vue'
+import { isTurretKill, type KillFeedItem } from './killFeedItem'
 
-interface KillEntry extends killFeedEvent {
+interface KillEntry extends KillFeedItem {
   id: number
 }
 
@@ -52,20 +53,27 @@ function addEntry(entry: KillEntry) {
   timers.set(entry.id, timer)
 }
 
+function queueEntry(item: KillFeedItem) {
+  // Stagger simultaneous events by delaying their insertion into the list
+  clearTimeout(batchResetTimer)
+  batchResetTimer = setTimeout(() => {
+    batchCount = 0
+  }, BATCH_RESET_MS) as unknown as number
+  const delay = batchCount * STAGGER_STEP_MS
+  batchCount++
+
+  const entry: KillEntry = { ...item, id: nextId++ }
+  setTimeout(() => addEntry(entry), delay)
+}
+
 const unsub = client.onIngameEvents({
   onKillFeedEvent(event: killFeedEvent) {
     if (isGrompKill(event)) return
-
-    // Stagger simultaneous events by delaying their insertion into the list
-    clearTimeout(batchResetTimer)
-    batchResetTimer = setTimeout(() => {
-      batchCount = 0
-    }, BATCH_RESET_MS) as unknown as number
-    const delay = batchCount * STAGGER_STEP_MS
-    batchCount++
-
-    const entry: KillEntry = { ...event, id: nextId++ }
-    setTimeout(() => addEntry(entry), delay)
+    if (isTurretKill(event)) {
+      queueEntry({ ...event, objective: 'turret' })
+      return
+    }
+    queueEntry(event)
   },
 })
 

@@ -213,14 +213,18 @@ const shouldShowScene = computed(() =>
   justify-content: center;
 }
 
-/* Opaque CI backdrop — post game is a full-screen scene, not an overlay over
+/* Opaque presentation backdrop — post game is a full-screen scene, not an overlay over
    game footage: project black with a faint accent floor glow and a soft
    top light so the panels sit on visible depth. */
 .backdrop {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(1100px 480px at 50% 108%, rgb(129 117 255 / 0.16), transparent 65%),
+    radial-gradient(
+      1100px 480px at 50% 108%,
+      color-mix(in oklab, var(--broadcast-accent) 16%, transparent),
+      transparent 65%
+    ),
     radial-gradient(1400px 700px at 50% -12%, rgb(255 255 255 / 0.05), transparent 60%),
     linear-gradient(to bottom, #131316, #070708);
 }

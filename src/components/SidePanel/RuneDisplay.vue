@@ -3,7 +3,7 @@ import { useIngameSelector } from '@/composables/useIngame'
 import type { ingameSingleRuneData, Team } from '@bluebottle_gg/league-broadcast-client'
 import { computed, ref, watch, onUnmounted } from 'vue'
 
-import leagueBroadcastLogo from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
+import broadcastLogo from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
 import { useClient } from '@/client'
 import { playerDisplayName } from '@/utils/playerDisplayName'
 
@@ -169,7 +169,7 @@ onUnmounted(() => {
         </transition>
       </div>
       <div class="powered-by-panel">
-        <img :src="leagueBroadcastLogo" alt="League Broadcast" class="h-6 object-contain" />
+        <img :src="broadcastLogo" alt="League Broadcast" class="h-6 object-contain" />
       </div>
     </div>
   </Transition>

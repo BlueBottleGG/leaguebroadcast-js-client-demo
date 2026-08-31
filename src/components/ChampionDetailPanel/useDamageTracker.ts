@@ -1,11 +1,11 @@
 import { ref, type Ref } from 'vue'
 import { isActive, type championDetailData } from '@bluebottle_gg/league-broadcast-client'
 
-/** A recent HP drop, used to compute cumulative damage within the burst window. */
-interface DamageSample {
-  /** gameTime (seconds) at which this drop was observed */
+/** A recent HP change, used to compute cumulative damage/healing within a rolling window. */
+interface HpSample {
+  /** gameTime (seconds) at which this change was observed */
   time: number
-  /** HP lost in this sample */
+  /** HP lost (damage) or gained (healing) in this sample */
   amount: number
 }
 
@@ -19,12 +19,25 @@ const BURST_WINDOW_SECONDS = 1.0
 const BURST_THRESHOLD_FRACTION = 0.2
 /** Minimum time between big-burst panel pulses (ms, wall-clock). */
 const BURST_COOLDOWN_MS = 800
-/** An upward HP jump larger than this fraction of max HP is treated as a respawn/heal, not damage; resets tracker. */
-const RESET_ON_HEAL_FRACTION = 0.15
+/**
+ * An upward HP jump larger than this fraction of max HP is treated as a respawn / max-HP change
+ * rather than a heal, and resets the tracker silently. Deliberately high so that genuinely big
+ * heals (Soraka R, a full Warmog tick, a healthbar-swinging lifesteal combo) still get the green
+ * chip; ordinary respawns are caught by the was-dead check instead.
+ */
+const RESET_ON_HEAL_FRACTION = 0.6
 /** How long the green heal segment holds at its floor before catching up to the fill (ms, wall-clock). */
 const HEAL_HOLD_MS = 200
 /** How long the green heal segment takes to rise toward the current fill (ms, wall-clock). */
 const HEAL_RISE_MS = 500
+/** Rolling window used to accumulate healing before deciding it is "a heal" (seconds, gameTime). */
+const HEAL_WINDOW_SECONDS = 1.5
+/**
+ * Cumulative healing (HP) within HEAL_WINDOW_SECONDS needed to show the chip. Flat, not scaled to
+ * max HP: passive regen tops out at a few HP per second at any stage of the game, so a fixed bar
+ * filters it out without letting a tanky champion's large max HP hide real heals.
+ */
+const HEAL_THRESHOLD_HP = 30
 
 export interface DamageTracker {
   /** Ghost segment fill percentage (0-100). Sits at the recent peak HP% and eases down toward current HP%. */
@@ -61,13 +74,18 @@ export function useDamageTracker(): DamageTracker {
   let prevHealth: number | null = null
   let prevMax: number | null = null
   let prevGameTime: number | null = null
+  let prevDead = false
 
   /** Recent drops within the burst window, oldest first. */
-  let recentDamage: DamageSample[] = []
+  let recentDamage: HpSample[] = []
+  /** Recent HP gains within the heal window, oldest first; consumed once the chip fires. */
+  let recentHealing: HpSample[] = []
   /** Current animated ghost peak, as raw HP (not %), used as the drain-from value. */
   let ghostPeakHp = 0
   /** Current animated heal floor, as raw HP (not %), used as the rise-from value. */
   let healFloorHp = 0
+  /** True from the moment a heal chip is scheduled until its rise animation has finished. */
+  let healChipActive = false
 
   let holdTimer: ReturnType<typeof setTimeout> | null = null
   let drainRaf: number | null = null
@@ -97,6 +115,7 @@ export function useDamageTracker(): DamageTracker {
       cancelAnimationFrame(healRaf)
       healRaf = null
     }
+    healChipActive = false
   }
 
   function clearTimers() {
@@ -108,6 +127,7 @@ export function useDamageTracker(): DamageTracker {
   function resetTracker(health: number | null, max: number | null, gameTime: number | null) {
     clearTimers()
     recentDamage = []
+    recentHealing = []
     ghostPeakHp = health ?? 0
     healFloorHp = health ?? 0
     const pct = max ? Math.min(100, Math.max(0, ((health ?? 0) / max) * 100)) : 0
@@ -177,9 +197,17 @@ export function useDamageTracker(): DamageTracker {
     const startFloor = healFloorHp
     const startTime = performance.now()
 
+    // Settle onto the live HP rather than the (possibly stale) target the rise was aimed at, so
+    // regen ticks that arrived mid-animation can't leave a sliver of chip behind.
+    function settle() {
+      const restHp = Math.max(targetHp, prevHealth ?? targetHp)
+      healFloorHp = restHp
+      healFloorPct.value = pctOf(restHp, max)
+      healChipActive = false
+    }
+
     if (startFloor >= targetHp) {
-      healFloorHp = targetHp
-      healFloorPct.value = pctOf(targetHp, max)
+      settle()
       return
     }
 
@@ -195,8 +223,7 @@ export function useDamageTracker(): DamageTracker {
         healRaf = requestAnimationFrame(step)
       } else {
         healRaf = null
-        healFloorHp = targetHp
-        healFloorPct.value = pctOf(targetHp, max)
+        settle()
       }
     }
     healRaf = requestAnimationFrame(step)
@@ -207,6 +234,7 @@ export function useDamageTracker(): DamageTracker {
     if (healHoldTimer !== null) {
       clearTimeout(healHoldTimer)
     }
+    healChipActive = true
     healHoldTimer = setTimeout(() => {
       healHoldTimer = null
       riseHealTo(targetHp, max)
@@ -219,6 +247,8 @@ export function useDamageTracker(): DamageTracker {
     const health = detail?.health.current ?? null
     const max = detail?.health.max ?? null
     const isDead = isActive(detail?.respawnAt ?? undefined, gameTime)
+    const wasDead = prevDead
+    prevDead = isDead
 
     // --- Guards: hero switch, appear-from-hidden, gameTime regression ---
     const heroSwitched =
@@ -252,9 +282,9 @@ export function useDamageTracker(): DamageTracker {
     const curHealth = health ?? 0
     const curMax = max ?? prevMax ?? 1
 
-    // --- Guard: respawn/heal (large upward jump) resets without emitting a visual ---
+    // --- Guard: respawn / max-HP swing (huge upward jump) resets without emitting a visual ---
     const jumpUp = curHealth - prevHealth
-    if (!isDead && jumpUp > curMax * RESET_ON_HEAL_FRACTION) {
+    if (!isDead && jumpUp > 0 && (wasDead || jumpUp > curMax * RESET_ON_HEAL_FRACTION)) {
       resetTracker(curHealth, curMax, gameTime)
       return
     }
@@ -269,6 +299,7 @@ export function useDamageTracker(): DamageTracker {
     if (delta > 0.0001) {
       // Damage cancels any in-progress green heal chip so the two effects never fight.
       clearHealTimers()
+      recentHealing = []
       healFloorHp = curHealth
       healFloorPct.value = pctOf(curHealth, curMax)
 
@@ -297,17 +328,34 @@ export function useDamageTracker(): DamageTracker {
         })
       }
     } else if (curHealth - prevHealth > 0.0001) {
-      // HP increased but not enough to be a respawn/heal reset (e.g. sustain heal/regen).
-      // Kill any red damage chip so a heal never shows red, then drive the green heal chip:
-      // its floor holds at the pre-heal HP and rises to meet the fill, painting the gained
-      // region green over the (possibly low-HP red) fill beneath.
-      clearGhostTimers()
-      ghostPeakHp = curHealth
-      ghostPct.value = pctOf(curHealth, curMax)
+      // HP increased. Passive regen ticks in at ~1 HP per update, so a per-tick chip would flicker
+      // a 1px sliver permanently; instead accumulate gains over a short window and only fire the
+      // chip once they add up to something a viewer would read as "that champion got healed".
+      recentHealing.push({ time: gameTime, amount: curHealth - prevHealth })
+      recentHealing = recentHealing.filter((s) => gameTime - s.time <= HEAL_WINDOW_SECONDS)
+      const healed = recentHealing.reduce((sum, s) => sum + s.amount, 0)
 
-      healFloorHp = Math.min(healFloorHp, prevHealth)
-      healFloorPct.value = pctOf(healFloorHp, curMax)
-      scheduleHealRise(curHealth, curMax)
+      if (healed >= HEAL_THRESHOLD_HP) {
+        // Consume the window so the same heal can't re-trigger off the next regen tick; a heal
+        // that keeps ticking simply accumulates a fresh window and extends the live chip.
+        recentHealing = []
+
+        // Kill any red damage chip so a heal never shows red, then drive the green heal chip:
+        // its floor holds at the pre-heal HP and rises to meet the fill, painting the gained
+        // region green over the (possibly low-HP red) fill beneath.
+        clearGhostTimers()
+        ghostPeakHp = curHealth
+        ghostPct.value = pctOf(curHealth, curMax)
+
+        healFloorHp = Math.min(healFloorHp, curHealth - healed)
+        healFloorPct.value = pctOf(healFloorHp, curMax)
+        scheduleHealRise(curHealth, curMax)
+      } else if (!healChipActive) {
+        // Sub-threshold gain (regen): keep the floor pinned to the fill so the chip stays
+        // zero-width and invisible. While a chip is animating, leave it to its own rise.
+        healFloorHp = curHealth
+        healFloorPct.value = pctOf(curHealth, curMax)
+      }
     }
 
     prevHealth = curHealth

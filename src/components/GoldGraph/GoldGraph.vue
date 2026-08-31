@@ -6,6 +6,14 @@ import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
 import SlideTransition from '@/transitions/SlideTransition.vue'
 import { buildGoldHistorySeries } from './goldGraphHistory'
 
+const props = withDefaults(
+  defineProps<{
+    /** Render only the chart inside the bottom player-scoreboard footprint. */
+    variant?: 'full' | 'player-scoreboard'
+  }>(),
+  { variant: 'full' },
+)
+
 const client = useClient()
 const scoreboard = useIngameSelector((s) => s.gameData.scoreboard)
 const blueTeam = computed(() => scoreboard.value?.teams[0])
@@ -533,15 +541,19 @@ const verticalLines = computed(() => {
 
 <template>
   <SlideTransition>
-    <div v-if="goldGraph" class="gold-graph-container">
-      <div class="title-container">
+    <div
+      v-if="goldGraph"
+      class="gold-graph-container"
+      :class="{ 'player-scoreboard-variant': props.variant === 'player-scoreboard' }"
+    >
+      <div v-if="props.variant === 'full'" class="title-container">
         <div class="-translate-y-10 flex flex-row justify-between w-full items-center">
           <span class="title-text">Gold Graph</span>
           <span class="title-arrow ml-auto">&#8250;</span>
         </div>
       </div>
 
-      <div class="team-info-container">
+      <div v-if="props.variant === 'full'" class="team-info-container">
         <img
           v-if="blueTeam?.teamIconUrl"
           :src="client.getCacheUrl(blueTeam.teamIconUrl)"
@@ -698,6 +710,10 @@ const verticalLines = computed(() => {
   box-sizing: border-box;
 }
 
+.gold-graph-container.player-scoreboard-variant {
+  grid-template-columns: 1fr;
+}
+
 .title-container {
   background-color: #1a1d24;
   /* project wash: accent bleeding in from the brand rail */
@@ -785,6 +801,11 @@ const verticalLines = computed(() => {
   overflow: hidden;
   border: 10px solid rgba(0, 0, 0, 1);
   box-sizing: border-box;
+}
+
+.player-scoreboard-variant .graph-container {
+  height: 100%;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
 .gold-graph {

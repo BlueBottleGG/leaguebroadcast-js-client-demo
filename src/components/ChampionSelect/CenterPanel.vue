@@ -3,8 +3,7 @@ import { computed } from 'vue'
 import type { championSelectTeam } from '@bluebottle_gg/league-broadcast-client'
 import { useClient } from '@/client'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
-// White T on the accent square — the title sponsor anchors the panel center.
-import brandLogo from '@/assets/blue_bottle-logo-color-bright_outline.svg?url'
+import projectLogo from '@/assets/blue_bottle-logo-color-bright_outline.svg?url'
 
 const props = defineProps<{
   blueTeam: championSelectTeam
@@ -66,7 +65,7 @@ function dotFilled(team: championSelectTeam, i: number) {
     </div>
 
     <!-- title sponsor between the teams (order puts it visually in the middle) -->
-    <img class="brand-center" :src="brandLogo" alt="BlueBottle" />
+    <img class="brand-center" :src="projectLogo" alt="BlueBottle" />
   </div>
 </template>
 
@@ -85,8 +84,8 @@ function dotFilled(team: championSelectTeam, i: number) {
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.55);
 }
 
-/* brand accent: a short centered accent tick on the panel's BOTTOM edge.
-   CI rule: accent sits on black/white only — the top edge is out because the
+/* A short centered project-accent tick on the panel's bottom edge.
+   The top edge is reserved for the
    phase timer's team-colored fill runs directly along it; down here the tick
    only meets black panel above and the screen edge below. */
 .center-panel::before {
@@ -119,8 +118,7 @@ function dotFilled(team: championSelectTeam, i: number) {
   order: 3;
 }
 
-/* title sponsor between the teams — replaces the old center divider (and the
-   timer dials around the icons). Accent square on the black panel only (CI). */
+/* Project mark between the teams replaces the old center divider. */
 .brand-center {
   order: 2;
   align-self: center;
@@ -229,7 +227,7 @@ function dotFilled(team: championSelectTeam, i: number) {
   overflow: hidden;
   text-overflow: ellipsis;
   /* names too long for even the full run shrink instead of clipping:
-     230px/len approximates Bebas Neue 900 caps filling the ~156px row; the 24px
+     230px/len approximates bold display caps filling the ~156px row; the 24px
      display size stays the cap for everything that fits */
   font-size: clamp(14px, calc(230px / var(--tn-len, 8)), 24px);
 }

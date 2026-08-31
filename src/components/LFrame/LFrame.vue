@@ -8,20 +8,10 @@ import InhibitorTimers from '../InhibitorTimers/InhibitorTimers.vue'
 import FadeTransition from '../../transitions/FadeTransition.vue'
 import { useIngameSelector } from '@/composables/useIngame'
 import { useGameClock } from '@/composables/useGameClock'
-import { useRoute } from 'vue-router'
 
 const isInGame = useIsInGame()
 const inhibitors = useIngameSelector((s) => s.gameData.inhibitors ?? [])
 const gameTime = useGameClock()
-const championDetail = useIngameSelector((s) => s.gameData.championDetail)
-const route = useRoute()
-
-const forceCutout = computed(
-  () =>
-    route.query.championinfo === 'cutout' ||
-    new URLSearchParams(window.location.search).get('championinfo') === 'cutout',
-)
-const showChampionDetail = computed(() => !forceCutout.value && !!championDetail.value)
 
 const showInhibitorTimers = computed(() =>
   inhibitors.value.some((team) =>
@@ -38,26 +28,9 @@ const showInhibitorTimers = computed(() =>
       <div class="lframe-header">
         <GameInfo />
       </div>
-      <div
-        id="champion-info-cutout"
-        :class="{ 'is-cutout': !showInhibitorTimers && !showChampionDetail }"
-      >
+      <div id="champion-info-cutout">
         <InhibitorTimers v-if="showInhibitorTimers" class="inhibitor-detail" />
-        <ChampionDetailPanel v-else-if="showChampionDetail" class="champion-detail" />
-        <svg
-          v-else
-          class="cutout-frame"
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M 0 0 H 100 V 100 H 0 Z M 3 0 L 90 0 L 95 12 L 95 37 L 92 37 L 92 57 L 95 57 L 95 100 L 3 100 Z"
-            fill="black"
-            fill-rule="evenodd"
-            clip-rule="evenodd"
-          />
-        </svg>
+        <ChampionDetailPanel v-else class="champion-detail" />
       </div>
       <div class="lframe-footer">
         <SponsorRotation />
@@ -81,7 +54,9 @@ const showInhibitorTimers = computed(() =>
   background-color: black;
 }
 
+/* Solid project-accent surface behind the sponsor rotation. */
 .lframe-footer {
+  /* background-color: var(--broadcast-accent); */
   background-color: black;
 }
 
@@ -92,19 +67,15 @@ const showInhibitorTimers = computed(() =>
   background-color: black;
 }
 
-#champion-info-cutout.is-cutout {
-  background-color: transparent;
-}
-
-.champion-detail,
-.inhibitor-detail {
+/* Champion detail fills the black window; we render the panel ourselves now,
+   so there's no cutout frame overlaid on top. */
+.champion-detail {
   position: absolute;
   inset: 0;
 }
 
-.cutout-frame {
-  display: block;
-  width: 100%;
-  height: 100%;
+.inhibitor-detail {
+  position: absolute;
+  inset: 0;
 }
 </style>

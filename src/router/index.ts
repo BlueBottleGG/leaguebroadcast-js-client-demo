@@ -29,6 +29,14 @@ const router = createRouter({
       name: 'pregame',
       component: () => import('@/views/PregameView.vue'),
     },
+    // Opt-in 3D champion-select source. The default combined and standalone
+    // pregame routes deliberately keep the established 2D presentation.
+    {
+      path: '/pregame-3d',
+      name: 'pregame-3d',
+      component: () => import('@/views/PregameView.vue'),
+      props: { enable3d: true },
+    },
     // Post-game recap scene on its own, as a standalone source.
     {
       path: '/postgame',

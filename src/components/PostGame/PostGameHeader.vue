@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { formatGameClock, type postGameOverview } from '@bluebottle_gg/league-broadcast-client'
 import { useClient } from '@/client'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
+import { useEventBranding } from '@/composables/useEventBranding'
 
 const props = defineProps<{
   overview: postGameOverview
@@ -11,6 +12,7 @@ const props = defineProps<{
 }>()
 
 const client = useClient()
+const { eventName } = useEventBranding()
 const cacheUrl = (path?: string) => client.getCacheUrl(path)
 
 const blueInfo = computed(() => props.overview.teamInfoBySide?.[props.blueSide])
@@ -92,7 +94,7 @@ const clock = computed(() => formatGameClock(props.overview.gameTime))
 
     <!-- Event banner -->
     <div class="banner">
-      <span class="banner-text">League Broadcast</span>
+      <span class="banner-text">{{ eventName || 'LEAGUE BROADCAST' }}</span>
       <span v-if="overview.patch" class="banner-sep">|</span>
       <span v-if="shortPatch" class="banner-text banner-patch">Patch {{ shortPatch }}</span>
     </div>

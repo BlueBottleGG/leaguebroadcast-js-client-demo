@@ -6,9 +6,9 @@ import {
   type ingameSideInfoPageRow,
 } from '@bluebottle_gg/league-broadcast-client'
 import { useIngameSelector } from '@/composables/useIngame'
-import brandLogo from '@/assets/blue_bottle-logo-color-bright_outline.svg?url'
-import { playerDisplayName } from '@/utils/playerDisplayName'
+import broadcastLogo from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
 import SideInfoRow from './SideInfoRow.vue'
+import { playerDisplayName } from '@/utils/playerDisplayName'
 
 const sideInfoPage = useIngameSelector((s) => s.gameData.sideInfoPage)
 const displayedPage = ref<ingameSideInfoPage | undefined>(sideInfoPage.value)
@@ -99,7 +99,7 @@ function clearAfterLeave() {
 
       <footer class="panel-footer">
         <span>PRESENTED BY </span>
-        <img :src="brandLogo" alt="BlueBottle" />
+        <img :src="broadcastLogo" alt="League Broadcast" />
       </footer>
     </aside>
   </Transition>

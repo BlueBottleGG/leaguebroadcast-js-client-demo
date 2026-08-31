@@ -11,10 +11,11 @@ import {
 import { computed } from 'vue'
 import SpellWithCooldown from './SpellWithCooldown.vue'
 import { useClient } from '@/client'
-import { playerDisplayName } from '@/utils/playerDisplayName'
 import ProgressBar from './ProgressBar.vue'
 import LevelUpNotification from './LevelUpNotification.vue'
 import { useGameClock } from '@/composables/useGameClock'
+import { playerDisplayName } from '@/utils/playerDisplayName'
+import { xpProgressPct } from '@/utils/xpProgress'
 
 const props = defineProps<{
   scoreboardPlayer?: ingameScoreboardBottomPlayerData
@@ -77,13 +78,7 @@ const buffBorderClass = computed(() => {
   return ''
 })
 
-const xpProgress = computed(() => {
-  if (!props.tabPlayer) return 0
-  const previousLevel = props.tabPlayer.experience.previousLevel
-  const nextLevel = props.tabPlayer.experience.nextLevel
-  const current = props.tabPlayer.experience.current
-  return ((current - previousLevel) / (nextLevel - previousLevel)) * 100
-})
+const xpProgress = computed(() => xpProgressPct(props.tabPlayer?.experience))
 
 const resourceColor = computed(() => {
   //resource type might be a string, so parse it to enum if needed
@@ -279,9 +274,15 @@ const resourceColor = computed(() => {
   font-weight: 800;
 }
 
+/* Bottom-anchored labels over the champion icon. `line-height: 1` trims the
+   half-leading + descender space that would otherwise push the digits below the
+   icon cell's `overflow: hidden` edge — at 12px the stacks line box has exactly
+   5px under the baseline, so the old `bottom: -5px` sliced the digits off along
+   the baseline. Worst in the last row, where that clip edge is the screen edge. */
 .level-text {
   position: absolute;
-  bottom: -5px;
+  bottom: 0;
+  line-height: 1;
   text-shadow: 0 0 2px rgba(0, 0, 0, 1);
   z-index: 10;
 }
@@ -347,6 +348,24 @@ const resourceColor = computed(() => {
   font-weight: 800;
   text-shadow: 0 0 2px rgba(0, 0, 0, 1);
   position: relative;
+}
+
+/* This column is only ~43px wide, but a late-game KDA ("16/7/14") needs ~55px.
+   With the spans at `width: 100%` the overflow ran outward and got clipped by
+   #player-info-container, eating the last assist digit on the Order side (the
+   mirrored side overflowed inward, so only blue looked broken). Size the spans
+   to their content and pin them to the column's outer edge, so any excess runs
+   inward into the empty gutter beside the health bars — which sits below the
+   name row, so nothing collides. */
+#player-info-container .player-stats span {
+  width: max-content;
+  left: auto;
+  right: 0;
+}
+
+#player-info-container.mirror .player-stats span {
+  left: 0;
+  right: auto;
 }
 
 /* Grayscale all columns except the death timer when player is dead */

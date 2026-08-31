@@ -1,13 +1,20 @@
 <script setup lang="ts">
-import leagueBroadcastLogo from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
-import blueBottleLogo from '@/assets/blue_bottle-logo-color-bright_outline.svg?url'
+import broadcastLogo from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
+import { useEventBranding } from '@/composables/useEventBranding'
+
+const { eventLogoUrl, eventName } = useEventBranding()
 </script>
 
 <template>
   <div class="brand-lockup">
-    <img class="league-logo" :src="leagueBroadcastLogo" alt="League Broadcast" />
-    <span class="rule" />
-    <img class="blue-bottle-logo" :src="blueBottleLogo" alt="BlueBottle" />
+    <img
+      v-if="eventLogoUrl"
+      class="event-logo"
+      :src="eventLogoUrl"
+      :alt="eventName ? `${eventName} logo` : 'Event logo'"
+    />
+    <span v-if="eventLogoUrl" class="rule" />
+    <img class="project-logo" :src="broadcastLogo" alt="League Broadcast" />
   </div>
 </template>
 
@@ -19,15 +26,15 @@ import blueBottleLogo from '@/assets/blue_bottle-logo-color-bright_outline.svg?u
   gap: 26px;
 }
 
-.league-logo {
-  width: 260px;
-  height: 48px;
-  object-fit: contain;
+/* explicit heights — marks render at fixed size, never intrinsic scale */
+.event-logo {
+  height: 40px;
+  width: auto;
 }
 
-.blue-bottle-logo {
-  width: 46px;
+.project-logo {
   height: 46px;
+  width: auto;
 }
 
 .rule {

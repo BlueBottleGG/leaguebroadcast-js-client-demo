@@ -109,9 +109,11 @@ function getStacks() {
         ></div>
         <div class="cooldown-timer">
           <div class="cooldown-timer-line"></div>
+          <!-- Same angle as the conic-gradient sweep above: both start at 12 o'clock
+               and advance clockwise, so the hand sits on the fill's leading edge. -->
           <div
             class="cooldown-timer-hand"
-            :style="{ transform: `rotate(${360 - elapsedDegrees}deg)` }"
+            :style="{ transform: `rotate(${elapsedDegrees}deg)` }"
           ></div>
         </div>
       </div>

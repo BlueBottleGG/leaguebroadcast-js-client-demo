@@ -1,24 +1,38 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useClient } from '@/client'
-import { type killFeedEvent } from '@bluebottle_gg/league-broadcast-client'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
 import scuttleIcon from '@/assets/scuttle.png'
+import towerIcon from '@/assets/tower.png'
+import type { KillFeedItem } from './killFeedItem'
 
 const props = defineProps<{
-  event: killFeedEvent
+  event: KillFeedItem
 }>()
 
 const client = useClient()
+
+const isTurret = computed(() => props.event.objective === 'turret')
 
 const isScuttle = computed(() => {
   const victim = props.event.victim
   return /^sru_crab/i.test(victim.name) || /^sru_crab/i.test(victim.alias)
 })
 
-const victimIcon = computed(() =>
-  isScuttle.value ? scuttleIcon : client.getCacheUrl(props.event.victim.squareImg),
-)
+/** Scuttle and turrets ship with the overlay; champions come from the asset cache. */
+const isObjective = computed(() => isTurret.value || isScuttle.value)
+
+const victimIcon = computed(() => {
+  if (isTurret.value) return towerIcon
+  if (isScuttle.value) return scuttleIcon
+  return client.getCacheUrl(props.event.victim.squareImg)
+})
+
+const victimAlt = computed(() => {
+  if (isTurret.value) return 'Turret'
+  if (isScuttle.value) return 'Scuttle Crab'
+  return props.event.victim.name
+})
 </script>
 
 <template>
@@ -56,8 +70,8 @@ const victimIcon = computed(() =>
     <img
       :src="victimIcon"
       class="champ-icon victim-icon"
-      :class="{ 'objective-icon': isScuttle }"
-      :alt="isScuttle ? 'Scuttle Crab' : event.victim.name"
+      :class="{ 'objective-icon': isObjective }"
+      :alt="victimAlt"
       @error="handleImageError"
       @load="handleImageLoad"
     />

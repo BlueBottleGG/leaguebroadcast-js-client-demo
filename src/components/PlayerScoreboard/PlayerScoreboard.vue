@@ -159,8 +159,12 @@ onUnmounted(() => {
   grid-template-areas: 'order-items order-info gold-diff chaos-info chaos-items';
 }
 
+/* Keep the border box identical to every other row — dropping the border
+   outright made the last row 2px taller than the four above it, so its icon,
+   bars and stats were all bigger and sat flush against the screen edge. Keeping
+   it transparent hides the divider while reserving that 2px as bottom margin. */
 .player-grid .grid-item:last-child {
-  border-bottom: none;
+  border-bottom-color: transparent;
 }
 
 .slide-down-enter-active,

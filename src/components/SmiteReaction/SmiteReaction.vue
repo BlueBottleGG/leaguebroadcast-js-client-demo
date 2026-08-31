@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
 import logoUrl from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
-import type { smiteReactionResult } from '@bluebottle_gg/league-broadcast-client'
+import { Team, type smiteReactionResult } from '@bluebottle_gg/league-broadcast-client'
 import { useClient } from '@/client'
+import { usePowerPlayStackBottom } from '@/composables/usePowerPlayStack'
 
 const _logoPreload = new window.Image()
 _logoPreload.src = logoUrl
@@ -105,6 +106,33 @@ const junglerPortrait = computed(() => {
 
 const junglerName = computed(() => smite.value?.junglerName.split('#')[0]?.toUpperCase() ?? '')
 
+/** Top inset (overlay px) when the top-right corner is otherwise free. */
+const DEFAULT_TOP = 80
+/**
+ * Extra clearance below the Chaos power-play stack. `stackBottom` already
+ * includes the trailing card's 4px margin, so 2px keeps the visual gap in line
+ * with the stack's own spacing — and makes the single-card case resolve to
+ * exactly DEFAULT_TOP, leaving the common layout untouched.
+ */
+const STACK_CLEARANCE = 2
+
+/* This card sits directly under Chaos' power-play stack. One card clears our
+   default top, but with baron + dragon running at once the second card reaches
+   past it — so drop below whatever the stack currently occupies. Reactive, not
+   frozen on show: the second play can start while the card is already up (that
+   objective's own smite event is swallowed by the guard above). */
+const chaosStackBottom = usePowerPlayStackBottom(Team.Chaos)
+const cardTop = computed(() => Math.max(DEFAULT_TOP, chaosStackBottom.value + STACK_CLEARANCE))
+
+/* Getting out of the way has to be instant: animating downwards would leave the
+   card sitting on the new power-play card for the length of the slide. Coming
+   back up into freed space is safe to ease (the slot is only released once the
+   card that held it has finished fading out). */
+const moveDuration = ref('0s')
+watch(cardTop, (next, previous) => {
+  moveDuration.value = next > previous ? '0s' : '0.35s'
+})
+
 /** CSS conic gradient for the reaction ring — follows animated value */
 const ringGradient = computed(() => {
   if (!smite.value) return ''
@@ -123,8 +151,13 @@ onUnmounted(() => {
 
 <template>
   <div
-    class="absolute pointer-events-none select-none z-40"
-    style="top: 80px; right: 250px; font-weight: 500"
+    class="smite-anchor absolute pointer-events-none select-none z-40"
+    :style="{
+      top: `${cardTop}px`,
+      right: '250px',
+      fontWeight: '500',
+      transitionDuration: moveDuration,
+    }"
   >
     <Transition name="smite-pop" appear>
       <div
@@ -252,6 +285,12 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* Duration is bound per direction — see moveDuration. */
+.smite-anchor {
+  transition-property: top;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* --- Badge pop (secured/missed) --- */
 .badge-pop-enter-active {
   transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
