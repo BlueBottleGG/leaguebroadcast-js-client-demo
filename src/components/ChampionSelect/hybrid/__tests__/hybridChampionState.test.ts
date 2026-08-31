@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import type { championSelectTeam } from '@bluebottle_gg/league-broadcast-client'
-import { collectHybridChampionSlots } from '../hybridChampionState.ts'
+import {
+  collectHybridChampionSlots,
+  hybridChampionModelMedia,
+  resolveHybridChampionModelStatus,
+} from '../hybridChampionState.ts'
 
 const blue = {
   slots: [
@@ -26,4 +30,14 @@ assert.deepEqual(
   ['Lux'],
 )
 
-console.log('hybrid champion hover and lock collection passed')
+assert.equal(resolveHybridChampionModelStatus('Ahri', undefined), 'loading')
+assert.equal(resolveHybridChampionModelStatus('Ahri', { alias: 'Lux', status: 'ready' }), 'loading')
+assert.equal(
+  resolveHybridChampionModelStatus('Ahri', { alias: 'Ahri', status: 'failed' }),
+  'failed',
+)
+assert.equal(hybridChampionModelMedia('loading'), 'transparent')
+assert.equal(hybridChampionModelMedia('ready'), 'model')
+assert.equal(hybridChampionModelMedia('failed'), 'splash')
+
+console.log('hybrid champion hover, lock, and model fallback state passed')

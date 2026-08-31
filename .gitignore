@@ -43,3 +43,6 @@ __screenshots__/
 ai-memory.db
 ai-memory.db-shm
 ai-memory.db-wal
+
+# Local champion GLB fixtures for the devtools VFX harness
+public/devtools/*.glb

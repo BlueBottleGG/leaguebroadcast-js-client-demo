@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { championSelectTeam } from '@bluebottle_gg/league-broadcast-client'
 import * as THREE from 'three'
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { useClient } from '@/client'
 import { resolveBackendAssetUrl } from '@/utils/backendAssets'
 import {
@@ -75,6 +76,10 @@ import {
 } from './championStageRuntime'
 import { addChampionStageLighting, createChampionStageStudio } from './championStageStudio'
 import { ChampionStageCameraController } from './championStageCamera'
+
+// Render at the display's real pixel density (capped) so models are as crisp
+// as the surrounding DOM art; the cap bounds fill cost on high-DPI displays.
+const MAX_PIXEL_RATIO = 2
 
 const props = defineProps<{
   activeSide?: StageSide | null
@@ -1741,6 +1746,8 @@ function handleResize(): void {
   const height = Math.max(container.value.clientHeight, 1)
   camera.aspect = width / height
   camera.updateProjectionMatrix()
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO)
+  if (renderer.getPixelRatio() !== pixelRatio) renderer.setPixelRatio(pixelRatio)
   renderer.setSize(width, height, false)
 }
 
@@ -1768,7 +1775,7 @@ function renderFrame(): void {
   timer.update()
   const delta = Math.min(timer.getDelta(), 0.05)
   actorRuntimes.forEach((runtime) => {
-    runtime.playback?.update(delta)
+    runtime.playback?.update(delta, camera)
     updateActorPosition(runtime, delta)
   })
   pickCardRuntimes.forEach((runtime, key) => {
@@ -1800,10 +1807,12 @@ function initializeStage(): void {
     return
   }
 
-  renderer.setPixelRatio(1)
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO))
   renderer.setClearColor(0x000000, 1)
   renderer.outputColorSpace = THREE.SRGBColorSpace
-  renderer.toneMapping = THREE.ACESFilmicToneMapping
+  // Neutral instead of ACES filmic: League textures are hand-painted with
+  // lighting baked in, and filmic grading desaturates them into clay.
+  renderer.toneMapping = THREE.NeutralToneMapping
   renderer.toneMappingExposure = 1
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFShadowMap
@@ -1814,6 +1823,17 @@ function initializeStage(): void {
   scene = new THREE.Scene()
   scene.background = new THREE.Color(0x000000)
   scene.fog = new THREE.FogExp2(0x000000, 0.014)
+
+  // A subtle image-based environment keeps the capped-roughness champion
+  // materials from reading flat. Must be assigned before any model warm-up so
+  // compileAsync compiles the shader variant that is used live.
+  const pmrem = new THREE.PMREMGenerator(renderer)
+  const room = new RoomEnvironment()
+  const environmentTarget = addStageResource(pmrem.fromScene(room, 0.04))
+  room.dispose()
+  pmrem.dispose()
+  scene.environment = environmentTarget.texture
+  scene.environmentIntensity = 0.3
 
   camera = new THREE.PerspectiveCamera(CAMERA_FINAL_FOV, 16 / 9, 0.1, 90)
   cameraController = new ChampionStageCameraController(camera, {

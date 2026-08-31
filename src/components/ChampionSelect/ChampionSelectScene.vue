@@ -14,6 +14,11 @@ import FearlessBanBar from './FearlessBanBar.vue'
 import CoachDisplay from './CoachDisplay.vue'
 import EventBrandPlate from './EventBrandPlate.vue'
 import { CHAMPION_SELECT_TIMING, milliseconds } from './championSelectTiming'
+import {
+  resolveHybridChampionModelStatus,
+  type HybridChampionModelState,
+  type HybridChampionModelStatus,
+} from './hybrid/hybridChampionState'
 
 // Three.js is a sizeable optional layer. Load it only while champion select is
 // actually rendered so the regular in-game overlay does not pay that startup cost.
@@ -225,17 +230,29 @@ const redFeaturedCard = computed(() => {
   const slot = index === null ? undefined : redTeam.value?.slots?.[index]
   return slot && index !== null ? { index, slot } : null
 })
-const hybridReadyAliases = ref<Record<string, string>>({})
+const hybridModelStates = ref<Record<string, HybridChampionModelState>>({})
 
-function handleHybridReadyChange(key: string, alias: string | null): void {
-  const next = { ...hybridReadyAliases.value }
-  if (alias) next[key] = alias
+function handleHybridStatusChange(
+  key: string,
+  alias: string | null,
+  status: HybridChampionModelStatus | null,
+): void {
+  const next = { ...hybridModelStates.value }
+  if (alias && status) next[key] = { alias, status }
   else delete next[key]
-  hybridReadyAliases.value = next
+  hybridModelStates.value = next
+}
+
+function hybridModelStatus(
+  key: string,
+  alias: string | undefined,
+): HybridChampionModelStatus | undefined {
+  if (!isHybrid.value) return undefined
+  return resolveHybridChampionModelStatus(alias, hybridModelStates.value[key])
 }
 
 watch(isHybrid, (enabled) => {
-  if (!enabled) hybridReadyAliases.value = {}
+  if (!enabled) hybridModelStates.value = {}
 })
 
 let flashKey = 0
@@ -407,7 +424,7 @@ watch(isActive, (active) => {
               :red-team="redTeam"
               :suppress-blue="featuredPick.blue !== null"
               :suppress-red="featuredPick.red !== null"
-              @ready-change="handleHybridReadyChange"
+              @status-change="handleHybridStatusChange"
             />
             <div class="picks blue">
               <PickCard
@@ -421,10 +438,7 @@ watch(isActive, (active) => {
                 :grow-inactive="blueGrowInactive"
                 :collapsed="featuredPick.blue !== null"
                 :model-viewport="isHybrid ? `blue-${i}` : undefined"
-                :model-ready="
-                  !!slot.champion?.alias &&
-                  hybridReadyAliases[`blue-${i}`] === slot.champion.alias
-                "
+                :model-status="hybridModelStatus(`blue-${i}`, slot.champion?.alias)"
                 :class="{ 'edge-left': i === 0 }"
               />
               <Transition name="pick-feature">
@@ -481,9 +495,7 @@ watch(isActive, (active) => {
                 :grow-inactive="redGrowInactive"
                 :collapsed="featuredPick.red !== null"
                 :model-viewport="isHybrid ? `red-${i}` : undefined"
-                :model-ready="
-                  !!slot.champion?.alias && hybridReadyAliases[`red-${i}`] === slot.champion.alias
-                "
+                :model-status="hybridModelStatus(`red-${i}`, slot.champion?.alias)"
                 :class="{ 'edge-right': i === (redTeam.slots?.length ?? 0) - 1 }"
               />
               <Transition name="pick-feature">

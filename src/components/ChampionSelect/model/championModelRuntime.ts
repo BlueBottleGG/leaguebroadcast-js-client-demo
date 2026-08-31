@@ -1,12 +1,24 @@
 import * as THREE from 'three'
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js'
+import {
+  createChampionIdleVfx,
+  disposeChampionIdleVfxAsset,
+  parseChampionIdleVfx,
+  type ChampionIdleVfxAsset,
+  type ChampionIdleVfxInstance,
+} from './championVfxRuntime.ts'
 
 export const CHAMPION_MODEL_WARMUP_LAYER = 31
 export const CHAMPION_MODEL_WORLD_SCALE = 0.0175
 export const CHAMPION_MODEL_YAW = 0
 
 const MODEL_PARKED_LAYER = 30
+// League's own champion shading is specular-heavy, but the exporter can only
+// write baseColor + full roughness into core glTF. Full roughness reads as
+// clay under Three's PBR lighting, so cap it to restore a painted-figure sheen.
+const MODEL_MAX_ROUGHNESS = 0.6
+const MODEL_TEXTURE_MAX_ANISOTROPY = 8
 const MODEL_LOAD_CONCURRENCY = 1
 const MODEL_PRELOAD_CACHE_LIMIT = 2
 const MODEL_WARMUP_MIN_IDLE_MS = 1
@@ -26,12 +38,14 @@ interface ModelStatusResponse {
 
 export interface ChampionModelAsset {
   animations: THREE.AnimationClip[]
+  idleVfx?: ChampionIdleVfxAsset
   scene: THREE.Group
 }
 
 export interface ChampionModelInstance {
   alias: string
   asset: ChampionModelAsset
+  idleVfx?: ChampionIdleVfxInstance
   model: THREE.Object3D
   ownedMaterials: THREE.Material[]
 }
@@ -39,7 +53,7 @@ export interface ChampionModelInstance {
 export interface ChampionModelPlayback {
   playIdle(): void
   playSpawn(): void
-  update(delta: number): void
+  update(delta: number, camera?: THREE.Camera): void
   dispose(): void
 }
 
@@ -160,8 +174,9 @@ export function playChampionModelAnimation(
     mixer.addEventListener('finished', finishedListener)
   }
 
-  function update(delta: number): void {
+  function update(delta: number, camera?: THREE.Camera): void {
     mixer.update(delta)
+    instance.idleVfx?.update(delta, camera)
     if (!fallbackEntrance) return
 
     fallbackEntrance.elapsed = Math.min(fallbackEntrance.elapsed + delta, fallbackEntrance.duration)
@@ -191,6 +206,8 @@ export function playChampionModelAnimation(
 }
 
 export function disposeChampionModelInstance(instance: ChampionModelInstance): void {
+  instance.idleVfx?.dispose()
+  instance.idleVfx = undefined
   instance.model.removeFromParent()
   instance.ownedMaterials.forEach((material) => material.dispose())
 }
@@ -219,6 +236,7 @@ function disposeChampionModelAsset(asset: ChampionModelAsset): void {
     const image = texture.image as { close?: () => void } | undefined
     image?.close?.()
   })
+  if (asset.idleVfx) disposeChampionIdleVfxAsset(asset.idleVfx)
 }
 
 function prepareChampionModelInstance(
@@ -237,6 +255,9 @@ function prepareChampionModelInstance(
     const original = Array.isArray(child.material) ? child.material : [child.material]
     const owned = original.map((material) => {
       const clone = material.clone()
+      if (clone instanceof THREE.MeshStandardMaterial) {
+        clone.roughness = Math.min(clone.roughness, MODEL_MAX_ROUGHNESS)
+      }
       if (clone.transparent) {
         clone.transparent = false
         clone.opacity = 1
@@ -252,7 +273,10 @@ function prepareChampionModelInstance(
   })
 
   configureModel(model)
-  return { alias, asset, model, ownedMaterials }
+  // After the material pass: VFX meshes own purpose-built transparent materials
+  // that the opacity normalisation above must not touch.
+  const idleVfx = asset.idleVfx ? createChampionIdleVfx(model, asset.idleVfx) : undefined
+  return { alias, asset, idleVfx, model, ownedMaterials }
 }
 
 function collectModelTextures(model: THREE.Object3D): THREE.Texture[] {
@@ -379,6 +403,10 @@ export function createChampionModelRuntime(
   const warmupRoot = new THREE.Group()
   const warmupCamera = options.camera.clone()
   const warmupTarget = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: true })
+  const modelTextureAnisotropy = Math.min(
+    options.renderer.capabilities.getMaxAnisotropy(),
+    MODEL_TEXTURE_MAX_ANISOTROPY,
+  )
   const parallelShaderCompileAvailable = options.renderer.extensions.has(
     'KHR_parallel_shader_compile',
   )
@@ -548,7 +576,10 @@ export function createChampionModelRuntime(
           }
           return new GLTFLoader().loadAsync(contentUrl)
         })
-        return { animations: gltf.animations, scene: gltf.scene }
+        for (const texture of collectModelTextures(gltf.scene)) {
+          texture.anisotropy = modelTextureAnisotropy
+        }
+        return { animations: gltf.animations, idleVfx: parseChampionIdleVfx(gltf), scene: gltf.scene }
       } catch (error) {
         if (signal.aborted) return null
         console.warn(`[${options.logName}] Model content failed for ${alias}`, error)

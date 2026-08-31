@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { championSelectTeam } from '@bluebottle_gg/league-broadcast-client'
 import * as THREE from 'three'
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { useClient } from '@/client'
 import {
   CHAMPION_MODEL_WARMUP_LAYER,
@@ -24,11 +25,16 @@ import {
   collectHybridChampionSlots,
   hybridChampionSlotSignature,
   type HybridChampionSlot,
+  type HybridChampionModelStatus,
 } from './hybridChampionState'
 
 const INCLUDE_HOVER_MODELS = true
 const FIRST_PORTRAIT_LAYER = 1
 const METRICS_REPORT_INTERVAL_MS = 5_000
+// Render at the display's real pixel density (capped) so models are as crisp
+// as the surrounding DOM art; the cap bounds fill cost on high-DPI displays.
+const MAX_PIXEL_RATIO = 2
+const SIZE_PROBE = new THREE.Vector2()
 
 const props = withDefaults(
   defineProps<{
@@ -41,7 +47,7 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  readyChange: [key: string, alias: string | null]
+  statusChange: [key: string, alias: string | null, status: HybridChampionModelStatus | null]
 }>()
 
 interface PortraitViewport {
@@ -76,12 +82,14 @@ const descriptorSignature = computed(() =>
 
 let renderer: THREE.WebGLRenderer | undefined
 let scene: THREE.Scene | undefined
+let environmentTarget: THREE.WebGLRenderTarget | undefined
 let modelRuntime: ChampionModelRuntime | undefined
 let resizeObserver: ResizeObserver | undefined
 let markerObserver: ResizeObserver | undefined
 let reducedMotionQuery: MediaQueryList | undefined
 let prefersReducedMotion = false
 let disposed = false
+let layerUnavailable = false
 let layoutDirty = true
 let trackLayoutUntil = 0
 let version = 0
@@ -126,7 +134,7 @@ function disposePortraitRuntime(runtime: PortraitRuntime): void {
     if (modelRuntime) modelRuntime.release(runtime.instance)
     else disposeChampionModelInstance(runtime.instance)
   }
-  emit('readyChange', runtime.descriptor.key, null)
+  emit('statusChange', runtime.descriptor.key, null, null)
 }
 
 function isCurrentRuntime(runtime: PortraitRuntime, requestVersion: number): boolean {
@@ -138,7 +146,7 @@ function isCurrentRuntime(runtime: PortraitRuntime, requestVersion: number): boo
 }
 
 function reportReady(runtime: PortraitRuntime): void {
-  emit('readyChange', runtime.descriptor.key, runtime.descriptor.alias)
+  emit('statusChange', runtime.descriptor.key, runtime.descriptor.alias, 'ready')
   if (!metricsEnabled) return
 
   const elapsed =
@@ -180,6 +188,9 @@ async function hydratePortrait(runtime: PortraitRuntime): Promise<void> {
 
   if (!instance || !isCurrentRuntime(runtime, requestVersion)) {
     if (instance) models.release(instance)
+    if (!instance && isCurrentRuntime(runtime, requestVersion)) {
+      emit('statusChange', runtime.descriptor.key, runtime.descriptor.alias, 'failed')
+    }
     return
   }
 
@@ -207,7 +218,14 @@ async function hydratePortrait(runtime: PortraitRuntime): Promise<void> {
 }
 
 function syncPortraits(): void {
-  if (!modelRuntime) return
+  if (!modelRuntime) {
+    if (layerUnavailable) {
+      desiredDescriptors.forEach((descriptor) => {
+        emit('statusChange', descriptor.key, descriptor.alias, 'failed')
+      })
+    }
+    return
+  }
   const desired = new Map(desiredDescriptors.map((descriptor) => [descriptor.key, descriptor]))
 
   portraitRuntimes.forEach((runtime, key) => {
@@ -254,7 +272,7 @@ function syncPortraits(): void {
     }
     portraitRuntimes.set(key, runtime)
     requestStartedAt.set(key, performance.now())
-    emit('readyChange', key, null)
+    emit('statusChange', key, descriptor.alias, 'loading')
     void hydratePortrait(runtime)
   })
 
@@ -281,18 +299,24 @@ function handleResize(): void {
   if (!renderer || !container.value) return
   const width = Math.max(container.value.clientWidth, 1)
   const height = Math.max(container.value.clientHeight, 1)
-  if (renderer.domElement.width !== width || renderer.domElement.height !== height) {
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO)
+  if (renderer.getPixelRatio() !== pixelRatio) renderer.setPixelRatio(pixelRatio)
+  const size = renderer.getSize(SIZE_PROBE)
+  if (size.x !== width || size.y !== height) {
     renderer.setSize(width, height, false)
   }
   layoutDirty = true
 }
 
+// Viewports are kept in CSS units; setViewport/setScissor scale by the
+// renderer's pixel ratio internally.
 function measureViewports(): void {
   if (!renderer) return
   const canvasRect = renderer.domElement.getBoundingClientRect()
   if (canvasRect.width <= 0 || canvasRect.height <= 0) return
-  const scaleX = renderer.domElement.width / canvasRect.width
-  const scaleY = renderer.domElement.height / canvasRect.height
+  const size = renderer.getSize(SIZE_PROBE)
+  const scaleX = size.x / canvasRect.width
+  const scaleY = size.y / canvasRect.height
   viewports.clear()
 
   markerElements.forEach((element, key) => {
@@ -303,10 +327,10 @@ function measureViewports(): void {
     const bottom = Math.min(marker.bottom, canvasRect.bottom)
     if (right <= left || bottom <= top) return
 
-    const x = Math.round((left - canvasRect.left) * scaleX)
-    const width = Math.max(1, Math.round((right - left) * scaleX))
-    const height = Math.max(1, Math.round((bottom - top) * scaleY))
-    const y = Math.round(renderer!.domElement.height - (bottom - canvasRect.top) * scaleY)
+    const x = (left - canvasRect.left) * scaleX
+    const width = Math.max(1, (right - left) * scaleX)
+    const height = Math.max(1, (bottom - top) * scaleY)
+    const y = size.y - (bottom - canvasRect.top) * scaleY
     viewports.set(key, { height, width, x, y })
   })
   layoutDirty = false
@@ -314,8 +338,9 @@ function measureViewports(): void {
 
 function renderVisiblePortraits(): void {
   if (!renderer || !scene) return
+  const size = renderer.getSize(SIZE_PROBE)
   renderer.setScissorTest(false)
-  renderer.setViewport(0, 0, renderer.domElement.width, renderer.domElement.height)
+  renderer.setViewport(0, 0, size.x, size.y)
   renderer.clear(true, true, true)
   renderer.setScissorTest(true)
 
@@ -363,7 +388,7 @@ function renderFrame(): void {
   if (rawDelta > 1 / 30) framesOver33Ms += 1
   if (rawDelta > 0.05) framesOver50Ms += 1
   renderedFrames += 1
-  portraitRuntimes.forEach((runtime) => runtime.playback?.update(delta))
+  portraitRuntimes.forEach((runtime) => runtime.playback?.update(delta, runtime.camera))
   const now = performance.now()
   if (layoutDirty || now < trackLayoutUntil) measureViewports()
   renderVisiblePortraits()
@@ -388,14 +413,20 @@ function initializeLayer(): void {
       powerPreference: 'high-performance',
     })
   } catch (error) {
+    layerUnavailable = true
     console.warn('[HybridChampionModels] WebGL is unavailable; keeping champion splash art', error)
+    desiredDescriptors.forEach((descriptor) => {
+      emit('statusChange', descriptor.key, descriptor.alias, 'failed')
+    })
     return
   }
 
-  renderer.setPixelRatio(1)
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO))
   renderer.setClearColor(0x000000, 0)
   renderer.outputColorSpace = THREE.SRGBColorSpace
-  renderer.toneMapping = THREE.ACESFilmicToneMapping
+  // Neutral instead of ACES filmic: League textures are hand-painted with
+  // lighting baked in, and filmic grading desaturates them into clay.
+  renderer.toneMapping = THREE.NeutralToneMapping
   renderer.toneMappingExposure = 1
   renderer.shadowMap.enabled = false
   renderer.autoClear = false
@@ -405,10 +436,20 @@ function initializeLayer(): void {
   container.value.appendChild(renderer.domElement)
 
   scene = new THREE.Scene()
-  const ambient = new THREE.HemisphereLight(0xe8f0ff, 0x080b10, 1.65)
-  const key = new THREE.DirectionalLight(0xffffff, 2.8)
+  // A subtle image-based environment keeps the now-glossier materials from
+  // reading flat. Must be assigned before any model warm-up so compileAsync
+  // compiles the shader variant that is used live.
+  const pmrem = new THREE.PMREMGenerator(renderer)
+  const room = new RoomEnvironment()
+  environmentTarget = pmrem.fromScene(room, 0.04)
+  room.dispose()
+  pmrem.dispose()
+  scene.environment = environmentTarget.texture
+  scene.environmentIntensity = 0.3
+  const ambient = new THREE.HemisphereLight(0xe8f0ff, 0x080b10, 1.15)
+  const key = new THREE.DirectionalLight(0xffffff, 2.0)
   key.position.set(-4, 7, 9)
-  const fill = new THREE.DirectionalLight(0xbfd7ff, 1.45)
+  const fill = new THREE.DirectionalLight(0xbfd7ff, 1.0)
   fill.position.set(5, 3, 7)
   ;[ambient, key, fill].forEach(enablePortraitLayers)
   scene.add(ambient, key, fill)
@@ -493,7 +534,9 @@ onUnmounted(() => {
   viewports.clear()
   renderer?.domElement.remove()
   const rendererToDispose = renderer
+  const environmentToDispose = environmentTarget
   void runtimeDisposal.then(() => {
+    environmentToDispose?.dispose()
     rendererToDispose?.dispose()
     rendererToDispose?.forceContextLoss()
   })
@@ -508,6 +551,7 @@ onUnmounted(() => {
   }
   renderer = undefined
   scene = undefined
+  environmentTarget = undefined
   modelRuntime = undefined
 })
 </script>

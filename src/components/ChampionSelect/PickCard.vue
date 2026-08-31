@@ -8,6 +8,10 @@ import type {
 import { useClient } from '@/client'
 import { resolvePlayerName } from '@/composables/useChampSelect'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
+import {
+  hybridChampionModelMedia,
+  type HybridChampionModelStatus,
+} from './hybrid/hybridChampionState'
 import TopIcon from '@/assets/lane/top-placeholder-cropped.svg?url'
 import JungleIcon from '@/assets/lane/jgl-placeholder-cropped.svg?url'
 import MidIcon from '@/assets/lane/mid-placeholder-cropped.svg?url'
@@ -27,8 +31,8 @@ const props = defineProps<{
   collapsed?: boolean
   /** shared hybrid-canvas viewport represented by this card */
   modelViewport?: string
-  /** the matching model is attached and safe to reveal */
-  modelReady?: boolean
+  /** loading stays transparent; only a terminal failure reveals splash art */
+  modelStatus?: HybridChampionModelStatus
 }>()
 
 const client = useClient()
@@ -58,6 +62,14 @@ const nameLen = computed(() => Math.max(playerName.value.length, 1))
 // The narrow card crops it to a vertical band; the featured card lets it fill
 // the whole team area. One image means no reload/desync when a card expands.
 const artSrc = computed(() => cacheUrl(props.slot.champion?.splashCenteredImg))
+const hybridMedia = computed(() => {
+  if (!props.modelViewport || !props.slot.champion) return null
+  return hybridChampionModelMedia(props.modelStatus ?? 'loading')
+})
+const showChampionArt = computed(() => hybridMedia.value === null || hybridMedia.value === 'splash')
+const modelLoading = computed(() => hybridMedia.value === 'transparent')
+const modelReady = computed(() => hybridMedia.value === 'model')
+const modelFailed = computed(() => hybridMedia.value === 'splash')
 
 // hovering = active with a champion present (not yet locked)
 const hovering = computed(() => props.slot.isActive && !!props.slot.champion)
@@ -104,7 +116,9 @@ const stats = computed(() => {
         collapsed,
         empty: !slot.champion,
         'hybrid-viewport': !!modelViewport,
+        'model-loading': modelLoading,
         'model-ready': modelReady,
+        'model-failed': modelFailed,
       },
     ]"
     :data-model-viewport="modelViewport"
@@ -119,16 +133,16 @@ const stats = computed(() => {
     <div class="art-wrap">
       <Transition name="art-fade">
         <img
-          v-if="slot.champion"
+          v-if="slot.champion && showChampionArt"
           :key="artSrc"
           class="art"
-          :class="{ hovering, locked, featured, 'model-ready': modelReady }"
+          :class="{ hovering, locked, featured }"
           :src="artSrc"
           :alt="slot.champion.name"
           @error="handleImageError"
           @load="handleImageLoad"
         />
-        <div v-else class="placeholder">
+        <div v-else-if="!slot.champion" class="placeholder">
           <img class="role-icon" :src="roleIcon" alt="" />
         </div>
       </Transition>
@@ -185,6 +199,7 @@ const stats = computed(() => {
   flex-grow: var(--grow-active, 1.6);
 }
 
+.pick-card.hybrid-viewport.model-loading,
 .pick-card.hybrid-viewport.model-ready {
   background: transparent;
 }
@@ -248,10 +263,6 @@ const stats = computed(() => {
   transition:
     transform 0.8s cubic-bezier(0.22, 1, 0.36, 1),
     opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.art.model-ready {
-  opacity: 0;
 }
 
 /* full color while hovered; a slow push-in that settles back on lock */
