@@ -25,6 +25,10 @@ const props = defineProps<{
   featured?: boolean
   /** another card on this team is featured; shrink to nothing meanwhile */
   collapsed?: boolean
+  /** shared hybrid-canvas viewport represented by this card */
+  modelViewport?: string
+  /** the matching model is attached and safe to reveal */
+  modelReady?: boolean
 }>()
 
 const client = useClient()
@@ -92,8 +96,18 @@ const stats = computed(() => {
     class="pick-card"
     :class="[
       `team-${team}`,
-      { active: slot.isActive, hovering, locked, featured, collapsed, empty: !slot.champion },
+      {
+        active: slot.isActive,
+        hovering,
+        locked,
+        featured,
+        collapsed,
+        empty: !slot.champion,
+        'hybrid-viewport': !!modelViewport,
+        'model-ready': modelReady,
+      },
     ]"
+    :data-model-viewport="modelViewport"
     :style="{
       '--grow-active': growActive,
       '--grow-inactive': growInactive,
@@ -108,7 +122,7 @@ const stats = computed(() => {
           v-if="slot.champion"
           :key="artSrc"
           class="art"
-          :class="{ hovering, locked, featured }"
+          :class="{ hovering, locked, featured, 'model-ready': modelReady }"
           :src="artSrc"
           :alt="slot.champion.name"
           @error="handleImageError"
@@ -118,6 +132,11 @@ const stats = computed(() => {
           <img class="role-icon" :src="roleIcon" alt="" />
         </div>
       </Transition>
+    </div>
+
+    <div v-if="modelReady" class="model-corner-masks" aria-hidden="true">
+      <span class="model-corner-mask model-corner-mask--left" />
+      <span class="model-corner-mask model-corner-mask--right" />
     </div>
 
     <div class="depth-overlay" />
@@ -154,15 +173,20 @@ const stats = computed(() => {
   background: rgb(0 0 0 / 0.78);
   border-radius: 6px 6px 0 0;
   flex-grow: var(--grow-inactive, 1);
-  /* Width states change once. Animating flex-grow forced layout for every card
-     on every frame; lock-in motion now lives on the full-width overlay. */
+  /* Matching curves keep the row's total flex allocation stable while the
+     active slot hands its extra width to the next card. */
   transition:
+    flex-grow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
     opacity 0.35s ease,
     transform 0.35s ease;
 }
 
 .pick-card.active {
   flex-grow: var(--grow-active, 1.6);
+}
+
+.pick-card.hybrid-viewport.model-ready {
+  background: transparent;
 }
 
 /* team-colored edge on the center-facing side, drawn INSIDE the tile — a real
@@ -221,7 +245,13 @@ const stats = computed(() => {
   /* narrow card fills the splash's full height (centered champion), so the
      push-in grows downward from the top and never crops the head */
   transform-origin: 50% 0%;
-  transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    transform 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.art.model-ready {
+  opacity: 0;
 }
 
 /* full color while hovered; a slow push-in that settles back on lock */
@@ -271,6 +301,34 @@ const stats = computed(() => {
   /* SVGs use currentColor (renders black as <img>); push near-white */
   filter: brightness(0) invert(1) drop-shadow(0 0 8px rgba(0, 0, 0, 0.85))
     drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
+}
+
+.model-corner-masks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.model-corner-mask {
+  position: absolute;
+  top: 0;
+  width: 6px;
+  height: 6px;
+}
+
+.model-corner-mask--left {
+  left: 0;
+  background: radial-gradient(circle at bottom right, transparent 0 5.5px, rgb(0 0 0 / 0.85) 6px);
+}
+
+.model-corner-mask--right {
+  right: 0;
+  background: radial-gradient(circle at bottom left, transparent 0 5.5px, rgb(0 0 0 / 0.85) 6px);
+}
+
+.pick-card.edge-left .model-corner-mask--left,
+.pick-card.edge-right .model-corner-mask--right {
+  display: none;
 }
 
 /* top-light / bottom-dark for depth */

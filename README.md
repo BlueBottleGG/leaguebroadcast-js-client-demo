@@ -55,7 +55,7 @@ component in this overlay and render nothing if selected: `postgame-game-stats`,
 | **ConnectionStatus** | WebSocket + game-state indicator |
 | **EventLog** | Live scrolling feed of raw game events |
 
-> The debug utilities have their own page: open `#/ingame/element/debug` during development to get connection diagnostics.
+> The debug utilities have their own page: open `/ingame/element/debug` during development to get connection diagnostics.
 
 ## Prerequisites
 
@@ -75,16 +75,19 @@ Open the URL printed by Vite (usually `http://localhost:5173`). The overlay will
 
 | Route | What it shows |
 |---|---|
-| `#/` | Combined ingame, champion-select, and post-game broadcast source |
-| `#/ingame` | Ingame overlay only |
-| `#/pregame` | Champion-select scene only (established 2D presentation) |
-| `#/pregame-3d` | Champion-select scene with the opt-in 3D champion stage |
-| `#/postgame` | Post-game scene only |
-| `#/ingame/element/<name>` | A single element at its exact production position |
-| `#/ingame/elements` | Index of all element pages and their debug query params |
+| `/` | Combined ingame, champion-select, and post-game broadcast source |
+| `/ingame` | Ingame overlay only |
+| `/pregame` | Champion-select scene only (established 2D presentation) |
+| `/pregame-3d` | Champion-select scene with the opt-in 3D champion stage |
+| `/pregame-hybrid` | Established champion-select layout with 3D models in the pick cards |
+| `/postgame` | Post-game scene only |
+| `/ingame/element/<name>` | A single element at its exact production position |
+| `/ingame/elements` | Index of all element pages and their debug query params |
 
-The 3D bundle and champion models are demand-loaded by `#/pregame-3d`. The default combined and
-`#/pregame` sources do not initialize Three.js or ask the backend to generate pregame models.
+The 3D bundle and champion models are demand-loaded by `/pregame-3d` and `/pregame-hybrid`. The
+default combined and `/pregame` sources do not initialize Three.js or ask the backend to generate
+pregame models. Add `?modelMetrics=1` to the hybrid route to log five-second renderer samples and
+per-model readiness/network sizes while profiling a draft.
 
 Element pages and the full overlay share the same positioning CSS ([src/views/overlay-layout.css](src/views/overlay-layout.css)) and element registry ([src/views/elements.ts](src/views/elements.ts)), so what you see on an element page is exactly what the full overlay renders.
 
@@ -93,7 +96,7 @@ Debug query params work on any route:
 - `?bg=dark` — use a flat dark development background. Any CSS color is accepted, and `bg=none` forces transparency. Dev builds only: it is a no-op in production, so a leftover `?bg=` in an OBS source URL can never paint over the game feed. The default is transparent.
 - `?backendport=<port>` — connect to a LeagueBroadcast server on a non-default port instead of `58869`.
 - `?gromp` — enable the special first-Gromp-kill announcer notification (hidden by default).
-- Element-specific params, e.g. `?camtest=demo` (dummy player cameras) and `?pgscreen=combined` (post-game screen) — the `#/ingame/elements` index lists them all per element. Scene data itself comes from the backend: run it in its mocking mode to drive the champ-select / post-game / in-game overlays without a live match.
+- Element-specific params, e.g. `?camtest=demo` (dummy player cameras) and `?pgscreen=combined` (post-game screen) — the `/ingame/elements` index lists them all per element. Scene data itself comes from the backend: run it in its mocking mode to drive the champ-select / post-game / in-game overlays without a live match.
 
 The standalone mock-data harnesses (`powerplay-preview.html`, `goldgraph-preview.html`, `teamfight-preview.html`) still exist for working without a server; the element pages use the real client connection.
 

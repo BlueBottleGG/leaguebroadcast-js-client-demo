@@ -6,21 +6,8 @@ import BotIcon from '@/assets/lane/bot-placeholder-cropped.svg?url'
 import SupportIcon from '@/assets/lane/sup-placeholder-cropped.svg?url'
 import studioFloorTextureUrl from './assets/pregame_floor_albedo.png'
 
-export const MODEL_CLIPS = {
-  idle: 'bb_idle',
-  spawn: 'bb_spawn',
-} as const
-
-// Model delivery and GPU warm-up.
-export const MODEL_WORLD_SCALE = 0.0175
-export const MODEL_LOAD_CONCURRENCY = 1
-export const MODEL_PRELOAD_CACHE_LIMIT = 2
-export const MODEL_YAW = 0
+// Stage hover policy.
 export const MODEL_PRELOAD_DEBOUNCE_MS = 150
-export const MODEL_WARMUP_LAYER = 31
-export const MODEL_PARKED_LAYER = 30
-export const MODEL_WARMUP_MIN_IDLE_MS = 1
-export const MODEL_WARMUP_STEP_TIMEOUT_MS = 100
 export const ACTOR_SWAP_DURATION_SECONDS = 0.55
 
 // Physical pick-card presentation.

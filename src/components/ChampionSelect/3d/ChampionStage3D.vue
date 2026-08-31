@@ -2,10 +2,17 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { championSelectTeam } from '@bluebottle_gg/league-broadcast-client'
 import * as THREE from 'three'
-import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js'
-import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js'
 import { useClient } from '@/client'
 import { resolveBackendAssetUrl } from '@/utils/backendAssets'
+import {
+  CHAMPION_MODEL_WORLD_SCALE,
+  CHAMPION_MODEL_YAW,
+  createChampionModelRuntime,
+  disposeChampionModelInstance,
+  playChampionModelAnimation,
+  type ChampionModelInstance,
+  type ChampionModelRuntime,
+} from '../model/championModelRuntime'
 import {
   collectStageActors,
   collectStageBanWalls,
@@ -35,16 +42,7 @@ import {
   CHAKRAM_SPIN_RAMP_RATIO,
   CHAKRAM_SPIN_TURNS,
   DEFAULT_LANE_ICON,
-  MODEL_CLIPS,
-  MODEL_LOAD_CONCURRENCY,
-  MODEL_PARKED_LAYER,
-  MODEL_PRELOAD_CACHE_LIMIT,
   MODEL_PRELOAD_DEBOUNCE_MS,
-  MODEL_WARMUP_LAYER,
-  MODEL_WARMUP_MIN_IDLE_MS,
-  MODEL_WARMUP_STEP_TIMEOUT_MS,
-  MODEL_WORLD_SCALE,
-  MODEL_YAW,
   PICK_CARD_BORDER_RADIUS,
   PICK_CARD_BORDER_TUBE_RADIUS,
   PICK_CARD_CONTENT_RESPONSE,
@@ -71,11 +69,7 @@ import {
   type ActivePickLane,
   type ActorRuntime,
   type BanWallRuntime,
-  type ChampionModelAsset,
-  type ModelStatusResponse,
-  type ParkedRenderable,
   type PickCardRuntime,
-  type PreparedChampionModel,
   type TeamIdentityTextRuntime,
   type TeamLogoRuntime,
 } from './championStageRuntime'
@@ -206,31 +200,18 @@ let renderer: THREE.WebGLRenderer | undefined
 let scene: THREE.Scene | undefined
 let camera: THREE.PerspectiveCamera | undefined
 let cameraController: ChampionStageCameraController | undefined
-let warmupCamera: THREE.PerspectiveCamera | undefined
-let warmupTarget: THREE.WebGLRenderTarget | undefined
-let modelWarmupRoot: THREE.Group | undefined
-let parallelShaderCompileAvailable = false
+let modelRuntime: ChampionModelRuntime | undefined
 let resizeObserver: ResizeObserver | undefined
 let stageReady = false
 let hasSyncedDraft = false
-const abortController = new AbortController()
 const timer = new THREE.Timer()
-const mixers = new Set<THREE.AnimationMixer>()
 const actorRuntimes = new Map<string, ActorRuntime>()
 const pickCardRuntimes = new Map<string, PickCardRuntime>()
 const banWallRuntimes = new Map<string, BanWallRuntime>()
-const modelAssets = new Map<string, ChampionModelAsset>()
-const modelRequests = new Map<string, Promise<ChampionModelAsset | null>>()
-const preparedModels = new Map<string, PreparedChampionModel>()
-const modelPreparationRequests = new Map<string, Promise<PreparedChampionModel | null>>()
-const cancelledModelPreparations = new Set<string>()
 const teamLogoRuntimes = new Map<StageSide, TeamLogoRuntime>()
 const teamIdentityTextRuntimes = new Map<StageSide, TeamIdentityTextRuntime>()
 const banWallParents = new Map<StageSide, THREE.Group>()
 const stageResources = new Set<{ dispose: () => void }>()
-const waitingModelLoads: Array<() => void> = []
-const speculativeModelAliases: string[] = []
-let activeModelLoads = 0
 let spinnerDisplayTexture: THREE.CanvasTexture | undefined
 let spinnerDisplayMesh: THREE.Mesh | undefined
 let laneDisplayTexture: THREE.CanvasTexture | undefined
@@ -248,7 +229,6 @@ let teamLogoSyncVersion = 0
 let modelPreloadTimer: number | undefined
 const laneIconImages = new Map<string, HTMLImageElement>()
 const unavailableDisplayImages = new Set<string>()
-let gpuWarmupTail: Promise<void> = Promise.resolve()
 let cameraExitRequested = false
 let reducedMotionQuery: MediaQueryList | undefined
 let prefersReducedMotion = false
@@ -694,7 +674,7 @@ function createPickCardRuntime(
 function syncPickCards(animateNewCards: boolean): void {
   if (!scene || !stageReady) return
   const pendingActorKeys = new Set(
-    [...actorRuntimes.entries()].filter(([, runtime]) => !runtime.modelVisual).map(([key]) => key),
+    [...actorRuntimes.entries()].filter(([, runtime]) => !runtime.modelInstance).map(([key]) => key),
   )
   const desiredCards = collectStagePickCards(props.blueTeam, props.redTeam, pendingActorKeys)
   const desired = new Map(desiredCards.map((card) => [card.key, card]))
@@ -1596,7 +1576,6 @@ function createActorRuntime(
     descriptor,
     entrancePending,
     group,
-    ownedMaterials: [],
     disposed: false,
   }
   return runtime
@@ -1624,214 +1603,12 @@ function moveActorRuntime(runtime: ActorRuntime, descriptor: StageChampionActor)
 
 function disposeActor(runtime: ActorRuntime): void {
   runtime.disposed = true
-  if (runtime.mixer) {
-    if (runtime.finishedListener)
-      runtime.mixer.removeEventListener('finished', runtime.finishedListener)
-    runtime.mixer.stopAllAction()
-    runtime.mixer.uncacheRoot(runtime.modelVisual ?? runtime.group)
-    mixers.delete(runtime.mixer)
+  runtime.playback?.dispose()
+  if (runtime.modelInstance) {
+    if (modelRuntime) modelRuntime.release(runtime.modelInstance)
+    else disposeChampionModelInstance(runtime.modelInstance)
   }
-  runtime.ownedMaterials.forEach((material) => material.dispose())
-  runtime.group.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return
-    if (!runtime.modelVisual || !runtime.modelVisual.getObjectById(child.id)) {
-      child.geometry.dispose()
-      const materials = Array.isArray(child.material) ? child.material : [child.material]
-      materials.forEach((material) => material.dispose())
-    }
-  })
   runtime.group.removeFromParent()
-}
-
-function applyModelWorldScale(model: THREE.Object3D): void {
-  model.scale.multiplyScalar(MODEL_WORLD_SCALE)
-}
-
-function prepareActorModel(alias: string, asset: ChampionModelAsset): PreparedChampionModel {
-  const model = cloneSkeleton(asset.scene)
-  const ownedMaterials: THREE.Material[] = []
-  model.rotation.y = MODEL_YAW
-  applyModelWorldScale(model)
-
-  model.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return
-    child.castShadow = true
-    child.receiveShadow = true
-    // Animated League meshes can move beyond their bind-pose bounds. Keep the
-    // color pass alive whenever the actor's lane anchor is in view.
-    child.frustumCulled = false
-    const original = Array.isArray(child.material) ? child.material : [child.material]
-    const owned = original.map((material) => {
-      const clone = material.clone()
-      // Preserve the exporter-provided face orientation. Forcing DoubleSide on
-      // every champion exposed interior faces on opaque models and makes each
-      // transparent primitive render twice. League's blended body/tail/wing
-      // textures behave as cutouts here, so depth-writing alpha test avoids
-      // same-mesh sorting errors (tails or wings composited over the torso).
-      if (clone.transparent) {
-        clone.transparent = false
-        clone.opacity = 1
-        clone.alphaTest = Math.max(clone.alphaTest, 0.08)
-        clone.alphaToCoverage = true
-        clone.depthWrite = true
-      }
-      clone.needsUpdate = true
-      return clone
-    })
-    ownedMaterials.push(...owned)
-    child.material = Array.isArray(child.material) ? owned : owned[0]
-  })
-
-  return { alias, asset, model, ownedMaterials }
-}
-
-function disposePreparedModel(prepared: PreparedChampionModel): void {
-  prepared.model.removeFromParent()
-  prepared.ownedMaterials.forEach((material) => material.dispose())
-}
-
-function collectModelTextures(model: THREE.Object3D): THREE.Texture[] {
-  const textures = new Set<THREE.Texture>()
-  model.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return
-    const materials = Array.isArray(child.material) ? child.material : [child.material]
-    materials.forEach((material) => {
-      Object.values(material).forEach((value) => {
-        if (value instanceof THREE.Texture) textures.add(value)
-      })
-    })
-  })
-  return [...textures]
-}
-
-function parkModelRenderables(model: THREE.Object3D): ParkedRenderable[] {
-  const renderables: ParkedRenderable[] = []
-  model.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return
-    renderables.push({ mesh: child, originalLayerMask: child.layers.mask })
-    child.layers.set(MODEL_PARKED_LAYER)
-  })
-  return renderables
-}
-
-function restoreModelLayers(renderables: ParkedRenderable[]): void {
-  renderables.forEach(({ mesh, originalLayerMask }) => {
-    mesh.layers.mask = originalLayerMask
-  })
-}
-
-/**
- * Wait for spare frame time before doing one synchronous GPU initialization
- * operation. The timeout avoids starving model spawns on a machine that never
- * reports a fully idle millisecond, while still strongly preferring idle
- * periods during normal 60 fps operation.
- */
-function waitForWarmupOpportunity(): Promise<boolean> {
-  if (abortController.signal.aborted) return Promise.resolve(false)
-
-  const idleWindow = window as unknown as {
-    cancelIdleCallback?: (handle: number) => void
-    requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number
-  }
-
-  return new Promise((resolve) => {
-    let idleId: number | undefined
-    let frameId: number | undefined
-    let settled = false
-
-    const finish = (canContinue: boolean) => {
-      if (settled) return
-      settled = true
-      if (idleId !== undefined) idleWindow.cancelIdleCallback?.(idleId)
-      if (frameId !== undefined) window.cancelAnimationFrame(frameId)
-      abortController.signal.removeEventListener('abort', handleAbort)
-      resolve(canContinue)
-    }
-    const handleAbort = () => finish(false)
-    abortController.signal.addEventListener('abort', handleAbort, { once: true })
-
-    if (idleWindow.requestIdleCallback) {
-      const requestIdlePeriod = () => {
-        idleId = idleWindow.requestIdleCallback?.(
-          (deadline) => {
-            idleId = undefined
-            if (deadline.didTimeout || deadline.timeRemaining() >= MODEL_WARMUP_MIN_IDLE_MS) {
-              finish(true)
-              return
-            }
-            requestIdlePeriod()
-          },
-          { timeout: MODEL_WARMUP_STEP_TIMEOUT_MS },
-        )
-      }
-      requestIdlePeriod()
-      return
-    }
-
-    // OBS is Chromium-based and normally supports requestIdleCallback. Keep a
-    // conservative fallback for other preview browsers by yielding two frames
-    // between warm-up operations.
-    frameId = window.requestAnimationFrame(() => {
-      frameId = window.requestAnimationFrame(() => finish(true))
-    })
-  })
-}
-
-function enqueueGpuWarmup<T>(task: () => Promise<T>): Promise<T> {
-  const scheduled = gpuWarmupTail.then(task, task)
-  gpuWarmupTail = scheduled.then(
-    () => undefined,
-    () => undefined,
-  )
-  return scheduled
-}
-
-function setWarmupLayers(renderables: ParkedRenderable[]): void {
-  renderables.forEach(({ mesh }) => mesh.layers.set(MODEL_WARMUP_LAYER))
-}
-
-function parkWarmupLayers(renderables: ParkedRenderable[]): void {
-  renderables.forEach(({ mesh }) => mesh.layers.set(MODEL_PARKED_LAYER))
-}
-
-function renderWarmupMesh(renderable: ParkedRenderable): boolean {
-  if (!renderer || !scene || !warmupCamera || !warmupTarget) return false
-  if (!parallelShaderCompileAvailable && !camera) return false
-
-  const previousTarget = renderer.getRenderTarget()
-  const shadowsAutoUpdate = renderer.shadowMap.autoUpdate
-  const shadowsNeedUpdate = renderer.shadowMap.needsUpdate
-  const warmOnCanvas = !parallelShaderCompileAvailable
-  renderable.mesh.layers.set(MODEL_WARMUP_LAYER)
-
-  try {
-    // Geometry buffers are created by the render path rather than compileAsync.
-    // Each 1x1 color pass also uses the layer-31-only 1x1 shadow key. That enters
-    // Three's real WebGLShadowMap path and prepares the generated depth material
-    // for this mesh without touching the production key's 2048px shadow map.
-    renderer.shadowMap.autoUpdate = true
-    renderer.shadowMap.needsUpdate = true
-    // Without KHR_parallel_shader_compile, Three cannot prove that the canvas
-    // color program finished linking. Exercise that exact output-color variant
-    // on the default framebuffer, then restore the live stage in the same task.
-    // Browsers present after the task, so the warm camera is never exposed.
-    renderer.setRenderTarget(warmOnCanvas ? null : warmupTarget)
-    renderer.render(scene, warmupCamera)
-    return true
-  } finally {
-    renderable.mesh.layers.set(MODEL_PARKED_LAYER)
-    if (warmOnCanvas && camera) {
-      // The warm-up key owns a separate shadow texture. Repaint the broadcast
-      // camera with its existing production shadow map before this task yields.
-      renderer.shadowMap.autoUpdate = false
-      renderer.shadowMap.needsUpdate = false
-      renderer.setRenderTarget(null)
-      renderer.render(scene, camera)
-    }
-    renderer.setRenderTarget(previousTarget)
-    renderer.shadowMap.autoUpdate = shadowsAutoUpdate
-    renderer.shadowMap.needsUpdate = shadowsNeedUpdate
-  }
 }
 
 function isModelAliasRelevant(alias: string): boolean {
@@ -1841,128 +1618,8 @@ function isModelAliasRelevant(alias: string): boolean {
   )
 }
 
-async function warmActorModelGpu(prepared: PreparedChampionModel): Promise<boolean> {
-  const { alias, model } = prepared
-  const renderables = parkModelRenderables(model)
-  if (!modelWarmupRoot) {
-    restoreModelLayers(renderables)
-    return false
-  }
-
-  const warmupId = `${alias}-${Math.round(performance.now() * 1000)}`
-  const startMark = `champion-model-warmup-start:${warmupId}`
-  const endMark = `champion-model-warmup-end:${warmupId}`
-  performance.mark(startMark)
-  modelWarmupRoot.add(model)
-
-  try {
-    for (const texture of collectModelTextures(model)) {
-      if (
-        !isModelAliasRelevant(alias) ||
-        !(await waitForWarmupOpportunity()) ||
-        abortController.signal.aborted ||
-        !renderer
-      )
-        return false
-      // Uploading every embedded champion texture on the first visible render
-      // caused the entire browser source to miss frames. Upload one per idle
-      // period instead; a delayed spawn is preferable to a broadcast freeze.
-      renderer.initTexture(texture)
-    }
-
-    if (
-      !isModelAliasRelevant(alias) ||
-      !(await waitForWarmupOpportunity()) ||
-      abortController.signal.aborted ||
-      !renderer ||
-      !warmupCamera ||
-      !scene
-    )
-      return false
-
-    // Uses KHR_parallel_shader_compile when the Chromium/driver pair exposes
-    // it. There is intentionally no timeout: a timeout cannot cancel WebGL's
-    // synchronous link work and revealing the model at that point simply moves
-    // the same stall back onto the lock-in frame.
-    setWarmupLayers(renderables)
-    try {
-      await renderer.compileAsync(model, warmupCamera, scene)
-    } finally {
-      parkWarmupLayers(renderables)
-    }
-    if (abortController.signal.aborted) return false
-
-    for (const renderable of renderables) {
-      if (
-        !isModelAliasRelevant(alias) ||
-        !(await waitForWarmupOpportunity()) ||
-        abortController.signal.aborted
-      )
-        return false
-      if (!renderWarmupMesh(renderable)) return false
-    }
-
-    return true
-  } catch (error) {
-    if (!abortController.signal.aborted) {
-      console.warn(
-        `[ChampionStage3D] GPU warm-up failed for ${alias}; keeping the 2D pick visible`,
-        error,
-      )
-    }
-    return false
-  } finally {
-    model.removeFromParent()
-    restoreModelLayers(renderables)
-    performance.mark(endMark)
-    performance.measure(`ChampionStage3D GPU warm-up (${alias})`, startMark, endMark)
-    performance.clearMarks(startMark)
-    performance.clearMarks(endMark)
-  }
-}
-
-function findClip(asset: ChampionModelAsset, name: string): THREE.AnimationClip | undefined {
-  return asset.animations.find((clip) => clip.name.toLowerCase() === name)
-}
-
-function playIdle(runtime: ActorRuntime, asset: ChampionModelAsset): void {
-  const idle = findClip(asset, MODEL_CLIPS.idle)
-  if (!runtime.mixer || !idle) return
-  runtime.mixer
-    .clipAction(idle)
-    .reset()
-    .setLoop(THREE.LoopRepeat, Number.POSITIVE_INFINITY)
-    .fadeIn(0.3)
-    .play()
-}
-
-function startFallbackEntrance(runtime: ActorRuntime): void {
-  if (!runtime.modelVisual) return
-  const targetScale = runtime.modelVisual.scale.clone()
-  const targetY = runtime.modelVisual.position.y
-  runtime.modelVisual.position.y = targetY - 0.32
-  runtime.modelVisual.scale.copy(targetScale).multiplyScalar(0.94)
-  runtime.fallbackEntrance = {
-    duration: 0.62,
-    elapsed: 0,
-    startY: runtime.modelVisual.position.y,
-    targetScale,
-    targetY,
-  }
-}
-
-function updateFallbackEntrance(runtime: ActorRuntime, delta: number): void {
-  const entrance = runtime.fallbackEntrance
-  const model = runtime.modelVisual
-  if (!entrance || !model) return
-
-  entrance.elapsed = Math.min(entrance.elapsed + delta, entrance.duration)
-  const progress = entrance.elapsed / entrance.duration
-  const eased = 1 - Math.pow(1 - progress, 3)
-  model.position.y = THREE.MathUtils.lerp(entrance.startY, entrance.targetY, eased)
-  model.scale.copy(entrance.targetScale).multiplyScalar(THREE.MathUtils.lerp(0.94, 1, eased))
-
-  if (progress >= 1) runtime.fallbackEntrance = undefined
+function isModelAliasPersistent(alias: string): boolean {
+  return actorDescriptors.value.some((actor) => actor.alias === alias)
 }
 
 function updateActorPosition(runtime: ActorRuntime, delta: number): void {
@@ -1981,287 +1638,12 @@ function updateActorPosition(runtime: ActorRuntime, delta: number): void {
   }
 }
 
-function playActorAnimation(runtime: ActorRuntime, asset: ChampionModelAsset): void {
-  if (!runtime.modelVisual) return
-  const mixer = new THREE.AnimationMixer(runtime.modelVisual)
-  runtime.mixer = mixer
-  mixers.add(mixer)
-
-  const entranceClip = findClip(asset, MODEL_CLIPS.spawn)
-
-  if (!runtime.entrancePending) {
-    playIdle(runtime, asset)
-    return
-  }
-
-  runtime.entrancePending = false
-  if (!entranceClip) {
-    startFallbackEntrance(runtime)
-    playIdle(runtime, asset)
-    return
-  }
-
-  const entrance = mixer.clipAction(entranceClip)
-  entrance.reset().setLoop(THREE.LoopOnce, 1)
-  entrance.clampWhenFinished = true
-  entrance.play()
-
-  const listener = (event: { action: THREE.AnimationAction }) => {
-    if (event.action !== entrance) return
-    playIdle(runtime, asset)
-    const idle = findClip(asset, MODEL_CLIPS.idle)
-    if (idle) mixer.clipAction(idle).crossFadeFrom(entrance, 0.35, true)
-    mixer.removeEventListener('finished', listener)
-    runtime.finishedListener = undefined
-  }
-  runtime.finishedListener = listener
-  mixer.addEventListener('finished', listener)
-}
-
-function resolveContentUrl(alias: string, status: ModelStatusResponse): string {
-  const fallback = `${apiBase}/pregame/models/${encodeURIComponent(alias)}/content`
-  const url = status.contentUrl ? new URL(status.contentUrl, `${apiBase}/`).toString() : fallback
-  if (!status.version) return url
-  const parsed = new URL(url)
-  parsed.searchParams.set('v', status.version)
-  return parsed.toString()
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms))
-}
-
-async function withModelLoadSlot<T>(load: () => Promise<T>): Promise<T> {
-  if (activeModelLoads >= MODEL_LOAD_CONCURRENCY) {
-    await new Promise<void>((resolve) => waitingModelLoads.push(resolve))
-  }
-  if (abortController.signal.aborted) {
-    throw new DOMException('Champion stage was disposed', 'AbortError')
-  }
-
-  activeModelLoads += 1
-  try {
-    return await load()
-  } finally {
-    activeModelLoads -= 1
-    waitingModelLoads.shift()?.()
-  }
-}
-
-function disposeModelAsset(asset: ChampionModelAsset): void {
-  const geometries = new Set<THREE.BufferGeometry>()
-  const materials = new Set<THREE.Material>()
-  const textures = new Set<THREE.Texture>()
-
-  asset.scene.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return
-    geometries.add(child.geometry)
-    const meshMaterials = Array.isArray(child.material) ? child.material : [child.material]
-    meshMaterials.forEach((material) => {
-      materials.add(material)
-      for (const value of Object.values(material)) {
-        if (value instanceof THREE.Texture) textures.add(value)
-      }
-    })
-  })
-
-  geometries.forEach((geometry) => geometry.dispose())
-  materials.forEach((material) => material.dispose())
-  textures.forEach((texture) => {
-    texture.dispose()
-    const image = texture.image as { close?: () => void } | undefined
-    image?.close?.()
-  })
-}
-
-async function requestChampionModel(alias: string): Promise<ChampionModelAsset | null> {
-  if (!/^[a-z0-9_-]+$/i.test(alias)) return null
-  const statusUrl = `${apiBase}/pregame/models/${encodeURIComponent(alias)}/status`
-
-  for (let attempt = 0; attempt < 80 && !abortController.signal.aborted; attempt += 1) {
-    let response: Response
-    try {
-      response = await fetch(statusUrl, {
-        headers: { Accept: 'application/json' },
-        signal: abortController.signal,
-      })
-    } catch {
-      // The 3D layer is optional. A disconnected backend keeps the physical
-      // pick card visible without flooding the broadcast console.
-      return null
-    }
-
-    if (response.status === 404) return null
-    if (!response.ok) {
-      await wait(1250)
-      continue
-    }
-
-    let status: ModelStatusResponse
-    try {
-      status = (await response.json()) as ModelStatusResponse
-    } catch {
-      return null
-    }
-    if (status.status === 'failed' || status.status === 'unavailable') return null
-    if (status.status !== 'ready') {
-      await wait(900 + Math.min(attempt, 8) * 100)
-      continue
-    }
-
-    try {
-      const contentUrl = resolveContentUrl(alias, status)
-      const gltf: GLTF = await withModelLoadSlot(async () => {
-        if (!(await waitForWarmupOpportunity())) {
-          throw new DOMException('Champion stage was disposed', 'AbortError')
-        }
-        // Keep the loader's known-good URL/resource resolution path. It also
-        // lets GLTFLoader select ImageBitmapLoader and manage embedded blob URLs
-        // exactly as it did before the warm-up optimization.
-        return new GLTFLoader().loadAsync(contentUrl)
-      })
-      return {
-        animations: gltf.animations,
-        scene: gltf.scene,
-      }
-    } catch (error) {
-      if (abortController.signal.aborted) return null
-      console.warn(`[ChampionStage3D] Model content failed for ${alias}`, error)
-      return null
-    }
-  }
-  return null
-}
-
-function getChampionModel(alias: string): Promise<ChampionModelAsset | null> {
-  const existing = modelAssets.get(alias)
-  if (existing) return Promise.resolve(existing)
-
-  const pending = modelRequests.get(alias)
-  if (pending) return pending
-
-  const request = requestChampionModel(alias).then((asset) => {
-    modelRequests.delete(alias)
-    if (asset && abortController.signal.aborted) {
-      disposeModelAsset(asset)
-      return null
-    }
-    if (asset) modelAssets.set(alias, asset)
-    return asset
-  })
-  modelRequests.set(alias, request)
-  return request
-}
-
-function pruneSpeculativeModels(): void {
-  const protectedAliases = new Set([
-    ...actorDescriptors.value.map((actor) => actor.alias),
-    ...activeModelAliases.value,
-  ])
-
-  while (speculativeModelAliases.length > MODEL_PRELOAD_CACHE_LIMIT) {
-    const disposableIndex = speculativeModelAliases.findIndex(
-      (alias) => !protectedAliases.has(alias),
-    )
-    if (disposableIndex < 0) return
-    const [alias] = speculativeModelAliases.splice(disposableIndex, 1)
-    if (!alias) continue
-    const prepared = preparedModels.get(alias)
-    if (prepared) {
-      preparedModels.delete(alias)
-      disposePreparedModel(prepared)
-    }
-    const asset = modelAssets.get(alias)
-    if (!asset) continue
-    modelAssets.delete(alias)
-    disposeModelAsset(asset)
-  }
-}
-
-function rememberSpeculativeModel(alias: string, asset: ChampionModelAsset | null): void {
-  if (!asset || actorDescriptors.value.some((actor) => actor.alias === alias)) return
-  const previousIndex = speculativeModelAliases.indexOf(alias)
-  if (previousIndex >= 0) speculativeModelAliases.splice(previousIndex, 1)
-  speculativeModelAliases.push(alias)
-  pruneSpeculativeModels()
-}
-
-function claimSpeculativeModel(alias: string): void {
-  const index = speculativeModelAliases.indexOf(alias)
-  if (index >= 0) speculativeModelAliases.splice(index, 1)
-}
-
-async function prepareChampionModel(alias: string): Promise<PreparedChampionModel | null> {
-  cancelledModelPreparations.delete(alias)
-  const asset = await getChampionModel(alias)
-  if (!asset || abortController.signal.aborted || !stageReady) return null
-
-  // A hover can move while its network request is in flight. Do not start a
-  // potentially expensive WebGL task for a champion that is no longer active.
-  if (!isModelAliasRelevant(alias)) {
-    cancelledModelPreparations.add(alias)
-    rememberSpeculativeModel(alias, asset)
-    return null
-  }
-
-  let prepared: PreparedChampionModel | undefined
-  try {
-    prepared = prepareActorModel(alias, asset)
-    const warmed = await enqueueGpuWarmup(() => warmActorModelGpu(prepared!))
-    if (!warmed || abortController.signal.aborted || !stageReady) {
-      if (!abortController.signal.aborted && !isModelAliasRelevant(alias)) {
-        cancelledModelPreparations.add(alias)
-      }
-      disposePreparedModel(prepared)
-      rememberSpeculativeModel(alias, asset)
-      return null
-    }
-  } catch (error) {
-    if (prepared) disposePreparedModel(prepared)
-    if (!abortController.signal.aborted) {
-      console.warn(
-        `[ChampionStage3D] Could not prepare ${alias}; keeping the physical pick card visible`,
-        error,
-      )
-    }
-    return null
-  }
-
-  // Cache the exact clone and cloned material UUIDs that were exercised by the
-  // hidden color and shadow passes. Re-cloning here would make Three see fresh
-  // material state and risks putting driver work back on the visible frame.
-  preparedModels.set(alias, prepared)
-  rememberSpeculativeModel(alias, asset)
-  return prepared
-}
-
-function getPreparedChampionModel(alias: string): Promise<PreparedChampionModel | null> {
-  const existing = preparedModels.get(alias)
-  if (existing) return Promise.resolve(existing)
-
-  const pending = modelPreparationRequests.get(alias)
-  if (pending) return pending
-
-  const request = prepareChampionModel(alias).finally(() => {
-    if (modelPreparationRequests.get(alias) === request) modelPreparationRequests.delete(alias)
-  })
-  modelPreparationRequests.set(alias, request)
-  return request
-}
-
-function claimPreparedChampionModel(prepared: PreparedChampionModel): boolean {
-  if (preparedModels.get(prepared.alias) !== prepared) return false
-  preparedModels.delete(prepared.alias)
-  claimSpeculativeModel(prepared.alias)
-  return true
-}
-
 function scheduleActiveModelPreload(): void {
   if (modelPreloadTimer !== undefined) window.clearTimeout(modelPreloadTimer)
   modelPreloadTimer = undefined
-  pruneSpeculativeModels()
+  modelRuntime?.prune()
   const aliases = [...activeModelAliases.value]
-  if (!stageReady || aliases.length === 0) return
+  if (!stageReady || !modelRuntime || aliases.length === 0) return
 
   // A stable hover is the earliest useful signal for a likely pick. Prepare the
   // exact clone all the way through its color and shadow GPU passes now, while a
@@ -2269,27 +1651,16 @@ function scheduleActiveModelPreload(): void {
   modelPreloadTimer = window.setTimeout(() => {
     modelPreloadTimer = undefined
     aliases.forEach((alias) => {
-      if (activeModelAliases.value.includes(alias)) void getPreparedChampionModel(alias)
+      if (activeModelAliases.value.includes(alias)) void modelRuntime?.prepare(alias)
     })
   }, MODEL_PRELOAD_DEBOUNCE_MS)
 }
 
 async function hydrateActor(runtime: ActorRuntime): Promise<void> {
+  const models = modelRuntime
+  if (!models) return
   const alias = runtime.descriptor.alias
-  let prepared = await getPreparedChampionModel(alias)
-
-  // If a stale hover stopped just before this lock claimed it, retry against the
-  // already-cached GLB. Hardware/driver warm-up failures still leave the 2D pick
-  // in place instead of exposing a known-cold model.
-  if (
-    !prepared &&
-    cancelledModelPreparations.has(alias) &&
-    !runtime.disposed &&
-    stageReady &&
-    isModelAliasRelevant(alias)
-  ) {
-    prepared = await getPreparedChampionModel(alias)
-  }
+  let prepared: ChampionModelInstance | null = await models.prepare(alias)
   if (!prepared) {
     // The actor and card watchers can be queued in either order for the same
     // lock snapshot. Re-sync after an unavailable model settles so a card that
@@ -2298,32 +1669,32 @@ async function hydrateActor(runtime: ActorRuntime): Promise<void> {
     return
   }
   if (runtime.disposed || !stageReady) {
-    rememberSpeculativeModel(alias, prepared.asset)
+    models.release(prepared)
     return
   }
 
   // A duplicate same-alias actor must never reparent the first actor's exact
   // clone. Claim atomically; a losing claimant prepares another instance while
   // reusing the renderer programs and shared source geometry/textures.
-  if (!claimPreparedChampionModel(prepared)) {
-    prepared = await getPreparedChampionModel(alias)
+  if (!models.claim(prepared)) {
+    prepared = await models.prepare(alias)
     if (!prepared) {
       if (!runtime.disposed && stageReady) syncPickCards(false)
       return
     }
     if (runtime.disposed || !stageReady) {
-      rememberSpeculativeModel(alias, prepared.asset)
+      models.release(prepared)
       return
     }
-    if (!claimPreparedChampionModel(prepared)) {
+    if (!models.claim(prepared)) {
       syncPickCards(false)
       return
     }
   }
-  runtime.ownedMaterials.push(...prepared.ownedMaterials)
-  runtime.modelVisual = prepared.model
+  runtime.modelInstance = prepared
   runtime.group.add(prepared.model)
-  playActorAnimation(runtime, prepared.asset)
+  runtime.playback = playChampionModelAnimation(prepared, runtime.entrancePending)
+  runtime.entrancePending = false
   // The physical card is the readiness placeholder. Retire it only after the
   // fully warmed model has been attached, producing a clean overlap/crossfade.
   syncPickCards(false)
@@ -2396,9 +1767,8 @@ function renderFrame(): void {
   if (!renderer || !scene || !camera) return
   timer.update()
   const delta = Math.min(timer.getDelta(), 0.05)
-  mixers.forEach((mixer) => mixer.update(delta))
   actorRuntimes.forEach((runtime) => {
-    updateFallbackEntrance(runtime, delta)
+    runtime.playback?.update(delta)
     updateActorPosition(runtime, delta)
   })
   pickCardRuntimes.forEach((runtime, key) => {
@@ -2444,24 +1814,12 @@ function initializeStage(): void {
   scene = new THREE.Scene()
   scene.background = new THREE.Color(0x000000)
   scene.fog = new THREE.FogExp2(0x000000, 0.014)
-  modelWarmupRoot = new THREE.Group()
-  modelWarmupRoot.name = 'champion-model-warmup-root'
-  scene.add(modelWarmupRoot)
 
   camera = new THREE.PerspectiveCamera(CAMERA_FINAL_FOV, 16 / 9, 0.1, 90)
   cameraController = new ChampionStageCameraController(camera, {
     activeSide: () => cameraActiveSide.value,
     prefersReducedMotion,
   })
-  warmupCamera = camera.clone()
-  warmupCamera.layers.set(MODEL_WARMUP_LAYER)
-  warmupTarget = addStageResource(new THREE.WebGLRenderTarget(1, 1, { depthBuffer: true }))
-  parallelShaderCompileAvailable = renderer.extensions.has('KHR_parallel_shader_compile')
-  console.info(
-    `[ChampionStage3D] Parallel shader compilation ${
-      parallelShaderCompileAvailable ? 'available' : 'unavailable'
-    }; exact color and shadow warm-up remains enabled`,
-  )
   timer.connect(document)
 
   const studio = createChampionStageStudio({
@@ -2479,6 +1837,23 @@ function initializeStage(): void {
   banStatusDisplayMesh = studio.banStatusDisplay
   studio.banWallParents.forEach((parent, side) => banWallParents.set(side, parent))
   addChampionStageLighting(scene)
+  const initializedRenderer = renderer
+  const initializedScene = scene
+  const initializedCamera = camera
+  modelRuntime = createChampionModelRuntime({
+    apiBase,
+    camera: initializedCamera,
+    configureModel: (model) => {
+      model.rotation.y = CHAMPION_MODEL_YAW
+      model.scale.multiplyScalar(CHAMPION_MODEL_WORLD_SCALE)
+    },
+    isPersistent: isModelAliasPersistent,
+    isRelevant: isModelAliasRelevant,
+    logName: 'ChampionStage3D',
+    renderer: initializedRenderer,
+    restoreLiveFrame: () => initializedRenderer.render(initializedScene, initializedCamera),
+    scene: initializedScene,
+  })
   stageReady = true
   syncDraftActors(false)
   syncPickCards(false)
@@ -2563,12 +1938,6 @@ watch(eventBrandSignature, () => {
 onMounted(initializeStage)
 
 function finalizeStageGpuDisposal(): void {
-  preparedModels.forEach(disposePreparedModel)
-  preparedModels.clear()
-  modelAssets.forEach((asset) => {
-    disposeModelAsset(asset)
-  })
-  modelAssets.clear()
   stageResources.forEach((resource) => resource.dispose())
   stageResources.clear()
   renderer?.dispose()
@@ -2577,26 +1946,18 @@ function finalizeStageGpuDisposal(): void {
   scene = undefined
   camera = undefined
   cameraController = undefined
-  warmupCamera = undefined
-  warmupTarget = undefined
-  modelWarmupRoot = undefined
-  parallelShaderCompileAvailable = false
-  modelPreparationRequests.clear()
-  modelRequests.clear()
-  cancelledModelPreparations.clear()
-  speculativeModelAliases.splice(0)
+  modelRuntime = undefined
 }
 
 onUnmounted(() => {
   stageReady = false
-  abortController.abort()
   if (modelPreloadTimer !== undefined) window.clearTimeout(modelPreloadTimer)
-  waitingModelLoads.splice(0).forEach((resume) => resume())
   resizeObserver?.disconnect()
   reducedMotionQuery?.removeEventListener('change', handleReducedMotionChange)
   reducedMotionQuery = undefined
   renderer?.setAnimationLoop(null)
   timer.dispose()
+  const modelDisposal = modelRuntime?.dispose() ?? Promise.resolve()
   actorRuntimes.forEach(disposeActor)
   actorRuntimes.clear()
   pickCardRuntimes.forEach(disposePickCard)
@@ -2613,12 +1974,7 @@ onUnmounted(() => {
   // compileAsync cannot be cancelled. Keep the context and shared GLB resources
   // alive until the serialized warm-up queue has genuinely settled, then tear
   // down the renderer without risking post-context-loss driver calls.
-  const pendingModelWork: Promise<unknown>[] = [
-    gpuWarmupTail,
-    ...modelPreparationRequests.values(),
-    ...modelRequests.values(),
-  ]
-  void Promise.allSettled(pendingModelWork).then(finalizeStageGpuDisposal)
+  void modelDisposal.then(finalizeStageGpuDisposal)
   spinnerDisplayTexture = undefined
   spinnerDisplayMesh = undefined
   laneDisplayTexture = undefined

@@ -8,14 +8,15 @@ import DebugBackground from '@/components/Debug/DebugBackground.vue'
 const props = withDefaults(
   defineProps<{
     enable3d?: boolean
+    variant?: '2d' | '3d' | 'hybrid'
   }>(),
-  { enable3d: false },
+  { enable3d: false, variant: undefined },
 )
 </script>
 
 <template>
   <div class="overlay">
     <DebugBackground />
-    <ChampionSelectScene :enable3d="props.enable3d" />
+    <ChampionSelectScene :enable3d="props.enable3d" :variant="props.variant" />
   </div>
 </template>

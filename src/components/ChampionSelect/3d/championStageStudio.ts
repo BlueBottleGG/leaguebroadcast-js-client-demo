@@ -1,9 +1,9 @@
 import * as THREE from 'three'
+import { CHAMPION_MODEL_WARMUP_LAYER } from '../model/championModelRuntime'
 import type { StageSide } from './championStageState'
 import {
   BLUE,
   CHAMPION_STAGE_LIGHTING,
-  MODEL_WARMUP_LAYER,
   RED,
   STUDIO_FLOOR_TEXTURE_URL,
 } from './championStageConfig'
@@ -299,8 +299,8 @@ export function addChampionStageLighting(scene: THREE.Scene): void {
   warmupKey.shadow.camera.near = key.shadow.camera.near
   warmupKey.shadow.camera.far = key.shadow.camera.far
   warmupKey.shadow.bias = key.shadow.bias
-  warmupKey.layers.set(MODEL_WARMUP_LAYER)
-  warmupKey.target.layers.set(MODEL_WARMUP_LAYER)
+  warmupKey.layers.set(CHAMPION_MODEL_WARMUP_LAYER)
+  warmupKey.target.layers.set(CHAMPION_MODEL_WARMUP_LAYER)
   scene.add(warmupKey, warmupKey.target)
 
   const fill = createSpotLight(lighting.fill)
@@ -344,6 +344,6 @@ export function addChampionStageLighting(scene: THREE.Scene): void {
   scene.traverse((object) => {
     if (!(object instanceof THREE.Light)) return
     if (object === key) object.layers.set(0)
-    else if (object !== warmupKey) object.layers.enable(MODEL_WARMUP_LAYER)
+    else if (object !== warmupKey) object.layers.enable(CHAMPION_MODEL_WARMUP_LAYER)
   })
 }

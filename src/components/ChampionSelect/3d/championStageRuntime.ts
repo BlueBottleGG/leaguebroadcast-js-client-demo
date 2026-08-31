@@ -1,37 +1,13 @@
 import type * as THREE from 'three'
 import type {
+  ChampionModelInstance,
+  ChampionModelPlayback,
+} from '../model/championModelRuntime'
+import type {
   StageBanWallDescriptor,
   StageChampionActor,
   StagePickCardDescriptor,
 } from './championStageState'
-
-export type ModelAvailability = 'missing' | 'building' | 'ready' | 'failed' | 'unavailable'
-
-export interface ModelStatusResponse {
-  status: ModelAvailability
-  version?: string
-  contentUrl?: string
-}
-
-export interface ChampionModelAsset {
-  animations: THREE.AnimationClip[]
-  scene: THREE.Group
-}
-
-export interface PreparedChampionModel {
-  alias: string
-  asset: ChampionModelAsset
-  model: THREE.Object3D
-  ownedMaterials: THREE.Material[]
-}
-
-export interface FallbackEntrance {
-  duration: number
-  elapsed: number
-  startY: number
-  targetScale: THREE.Vector3
-  targetY: number
-}
 
 export interface ActorPositionMove {
   duration: number
@@ -69,12 +45,9 @@ export interface TeamIdentityTextRuntime {
 export interface ActorRuntime {
   descriptor: StageChampionActor
   entrancePending: boolean
-  fallbackEntrance?: FallbackEntrance
-  finishedListener?: (event: { action: THREE.AnimationAction }) => void
   group: THREE.Group
-  mixer?: THREE.AnimationMixer
-  modelVisual?: THREE.Object3D
-  ownedMaterials: THREE.Material[]
+  modelInstance?: ChampionModelInstance
+  playback?: ChampionModelPlayback
   positionMove?: ActorPositionMove
   disposed: boolean
 }
@@ -125,11 +98,6 @@ export interface BanWallRuntime {
   spotlightMaterial: THREE.MeshBasicMaterial
   spotlightMesh: THREE.Mesh
   texture: THREE.Texture
-}
-
-export interface ParkedRenderable {
-  mesh: THREE.Mesh
-  originalLayerMask: number
 }
 
 export type CameraMotionPhase = 'intro' | 'live' | 'exit'

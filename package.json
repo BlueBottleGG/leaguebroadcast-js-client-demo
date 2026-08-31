@@ -11,8 +11,13 @@
     "type-check": "vue-tsc --build",
     "test:gold-graph": "node --experimental-strip-types src/components/GoldGraph/__tests__/goldGraphHistory.test.ts",
     "test:champion-stage": "node --experimental-strip-types src/components/ChampionSelect/3d/__tests__/championStageState.test.ts",
+    "test:routing": "node --experimental-strip-types src/router/__tests__/routerBase.test.ts",
+    "test:champion-hybrid": "run-s test:champion-hybrid:*",
+    "test:champion-hybrid:state": "node --experimental-strip-types src/components/ChampionSelect/hybrid/__tests__/hybridChampionState.test.ts",
+    "test:champion-hybrid:framing": "node --experimental-strip-types src/components/ChampionSelect/hybrid/__tests__/hybridChampionFraming.test.ts",
+    "test:champion-hybrid:animation": "node --experimental-strip-types src/components/ChampionSelect/hybrid/__tests__/championModelAnimation.test.ts",
     "test:event-branding": "node --experimental-strip-types src/utils/__tests__/backendAssets.test.ts",
-    "test:champion-select": "run-p test:champion-stage test:event-branding",
+    "test:champion-select": "run-s test:champion-stage test:champion-hybrid test:event-branding test:routing",
     "format": "oxfmt src/"
   },
   "dependencies": {

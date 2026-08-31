@@ -18,13 +18,20 @@ import { CHAMPION_SELECT_TIMING, milliseconds } from './championSelectTiming'
 // Three.js is a sizeable optional layer. Load it only while champion select is
 // actually rendered so the regular in-game overlay does not pay that startup cost.
 const ChampionStage3D = defineAsyncComponent(() => import('./3d/ChampionStage3D.vue'))
+const HybridChampionModelLayer = defineAsyncComponent(
+  () => import('./hybrid/HybridChampionModelLayer.vue'),
+)
 
 const props = withDefaults(
   defineProps<{
     enable3d?: boolean
+    variant?: '2d' | '3d' | 'hybrid'
   }>(),
-  { enable3d: false },
+  { enable3d: false, variant: undefined },
 )
+const variant = computed(() => props.variant ?? (props.enable3d ? '3d' : '2d'))
+const isThreeDimensionalStage = computed(() => variant.value === '3d')
+const isHybrid = computed(() => variant.value === 'hybrid')
 
 const isActive = useIsChampSelectActive()
 const data = useChampSelectData()
@@ -44,7 +51,7 @@ interface ChampionStageHandle {
 }
 const championStage = ref<ChampionStageHandle>()
 const transitionDuration = computed(() =>
-  props.enable3d
+  isThreeDimensionalStage.value
     ? {
         enter: CHAMPION_SELECT_TIMING.scene.threeDimensional.enterMs,
         leave: CHAMPION_SELECT_TIMING.scene.threeDimensional.leaveMs,
@@ -192,8 +199,9 @@ const cacheUrl = (path?: string) => client.getCacheUrl(path)
 
 // -- lock-in flashes ----------------------------------------------------------
 // A ban locking splashes the banned champion across the whole team pick area,
-// graying out before it leaves. A pick locking briefly presents a full-area
-// overlay of that card, then crossfades back to the fixed row.
+// graying out before it leaves. A pick lock can briefly present a full-area
+// overlay of that card, then crossfade back to the fixed row.
+const ENABLE_FULL_WIDTH_PICK_CARD = false
 
 interface BanFlash {
   champ: championData
@@ -217,6 +225,18 @@ const redFeaturedCard = computed(() => {
   const slot = index === null ? undefined : redTeam.value?.slots?.[index]
   return slot && index !== null ? { index, slot } : null
 })
+const hybridReadyAliases = ref<Record<string, string>>({})
+
+function handleHybridReadyChange(key: string, alias: string | null): void {
+  const next = { ...hybridReadyAliases.value }
+  if (alias) next[key] = alias
+  else delete next[key]
+  hybridReadyAliases.value = next
+}
+
+watch(isHybrid, (enabled) => {
+  if (!enabled) hybridReadyAliases.value = {}
+})
 
 let flashKey = 0
 const lockTimers: Record<string, ReturnType<typeof setTimeout>> = {}
@@ -239,6 +259,7 @@ function triggerBanFlash(side: 'blue' | 'red', champ: championData) {
 }
 function triggerPickFeature(side: 'blue' | 'red', index: number) {
   playActionSound('pick')
+  if (!ENABLE_FULL_WIDTH_PICK_CARD) return
   featuredPick.value = { ...featuredPick.value, [side]: index }
   // long enough to read the champion statistics shown on the expanded card
   schedule(`pick-${side}`, CHAMPION_SELECT_TIMING.lockIn.pickFeatureMs, () => {
@@ -331,11 +352,14 @@ watch(isActive, (active) => {
       <div
         v-show="rendered"
         class="champ-select-scene"
-        :class="{ 'champ-select-scene--3d': props.enable3d }"
+        :class="{
+          'champ-select-scene--3d': isThreeDimensionalStage,
+          'champ-select-scene--hybrid': isHybrid,
+        }"
         :style="sceneTimingStyle"
       >
         <ChampionStage3D
-          v-if="props.enable3d"
+          v-if="isThreeDimensionalStage"
           ref="championStage"
           :active-side="activeSide"
           :blue-team="blueTeam"
@@ -347,7 +371,7 @@ watch(isActive, (active) => {
           :red-bans="redBans"
         />
 
-        <div v-if="props.enable3d" class="scene-blackout" />
+        <div v-if="isThreeDimensionalStage" class="scene-blackout" />
 
         <div class="fearless-wrap">
           <FearlessBanBar :blue-team="blueTeam" :red-team="redTeam" />
@@ -377,6 +401,14 @@ watch(isActive, (active) => {
           />
 
           <div class="pick-strip">
+            <HybridChampionModelLayer
+              v-if="isHybrid"
+              :blue-team="blueTeam"
+              :red-team="redTeam"
+              :suppress-blue="featuredPick.blue !== null"
+              :suppress-red="featuredPick.red !== null"
+              @ready-change="handleHybridReadyChange"
+            />
             <div class="picks blue">
               <PickCard
                 v-for="(slot, i) in blueTeam.slots ?? []"
@@ -388,6 +420,11 @@ watch(isActive, (active) => {
                 :grow-active="1.6"
                 :grow-inactive="blueGrowInactive"
                 :collapsed="featuredPick.blue !== null"
+                :model-viewport="isHybrid ? `blue-${i}` : undefined"
+                :model-ready="
+                  !!slot.champion?.alias &&
+                  hybridReadyAliases[`blue-${i}`] === slot.champion.alias
+                "
                 :class="{ 'edge-left': i === 0 }"
               />
               <Transition name="pick-feature">
@@ -443,6 +480,10 @@ watch(isActive, (active) => {
                 :grow-active="1.6"
                 :grow-inactive="redGrowInactive"
                 :collapsed="featuredPick.red !== null"
+                :model-viewport="isHybrid ? `red-${i}` : undefined"
+                :model-ready="
+                  !!slot.champion?.alias && hybridReadyAliases[`red-${i}`] === slot.champion.alias
+                "
                 :class="{ 'edge-right': i === (redTeam.slots?.length ?? 0) - 1 }"
               />
               <Transition name="pick-feature">
@@ -560,6 +601,7 @@ watch(isActive, (active) => {
 }
 
 .pick-strip {
+  position: relative;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   /* cap the implicit row so tall center content can never stretch the cards */
@@ -577,6 +619,7 @@ watch(isActive, (active) => {
   height: 100%;
   overflow: hidden;
   contain: layout paint;
+  z-index: 1;
 }
 
 .picks > .pick-feature {

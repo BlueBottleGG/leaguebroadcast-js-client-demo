@@ -1,16 +1,15 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 import CombinedView from '@/views/CombinedView.vue'
 import OverlayView from '@/views/OverlayView.vue'
 import ElementView from '@/views/ElementView.vue'
 import ElementIndexView from '@/views/ElementIndexView.vue'
+import { migrateLegacyHashRoute, resolveRouterBase } from './routerBase'
+
+const routerBase = resolveRouterBase(window.location.pathname, import.meta.env.BASE_URL)
+migrateLegacyHashRoute(routerBase)
 
 const router = createRouter({
-  // Hash history so the overlay works under any mount path and needs no
-  // server-side SPA fallback: LeagueBroadcast serves the build as static files
-  // from an arbitrary subpath, so a deep-linked route like `.../pregame` would
-  // 404 under history mode. With hash routing every route (`.../#/pregame`)
-  // loads the same index.html, independent of the subpath it's hosted at.
-  history: createWebHashHistory(),
+  history: createWebHistory(routerBase),
   routes: [
     // Full broadcast (default): ingame overlay + champ select layered. One
     // source covers the whole match. `/combined` stays as an alias so existing
@@ -36,6 +35,14 @@ const router = createRouter({
       name: 'pregame-3d',
       component: () => import('@/views/PregameView.vue'),
       props: { enable3d: true },
+    },
+    // Hybrid champion select: established 2D draft layout with live 3D models
+    // inside the regular bottom-row pick cards.
+    {
+      path: '/pregame-hybrid',
+      name: 'pregame-hybrid',
+      component: () => import('@/views/PregameView.vue'),
+      props: { variant: 'hybrid' },
     },
     // Post-game recap scene on its own, as a standalone source.
     {
