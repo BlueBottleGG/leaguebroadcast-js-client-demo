@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue'
 import { usePowerPlaySlot } from '@/composables/usePowerPlayStack'
 import Baron from '@/assets/baron/baron.png'
 import Elder from '@/assets/dragon/elder.png'
+import ProjectLogo from '@/assets/blue_bottle-logo-color-bright_outline.svg?url'
 import BroadcastLogo from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
 
@@ -156,7 +157,7 @@ usePowerPlaySlot(
         <!-- Project brand rail: enters as a full-card splash, collapses into a side rail -->
         <div class="brand-rail">
           <p class="presented-by">presented by</p>
-          <img :src="BroadcastLogo" alt="League Broadcast" class="brand-rail-logo" />
+          <img :src="ProjectLogo" alt="BlueBottle" class="brand-rail-logo" />
         </div>
       </div>
 
@@ -190,7 +191,7 @@ usePowerPlaySlot(
         </div>
 
         <div class="brand-rail static">
-          <img :src="BroadcastLogo" alt="League Broadcast" class="brand-rail-logo" />
+          <img :src="ProjectLogo" alt="BlueBottle" class="brand-rail-logo" />
         </div>
 
         <!-- Accent outro: the project color takes over before the card fades out -->
@@ -392,8 +393,9 @@ usePowerPlaySlot(
 .power-play-text {
   color: white;
   font-weight: 700;
-  font-size: 20px;
-  line-height: 22px;
+  font-size: 16px;
+  line-height: 18px;
+  white-space: nowrap;
   text-shadow: 0 0 2px rgba(0, 0, 0, 1);
   width: 100%;
   text-align: center;
@@ -526,8 +528,8 @@ usePowerPlaySlot(
 }
 
 .splash-logo {
-  width: 36px;
-  height: 36px;
+  width: 140px;
+  height: auto;
   animation: splash-logo-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 2.7s both;
 }
 

@@ -145,3 +145,13 @@
   left: 20px;
   max-height: 900px;
 }
+
+/* Twitch interactions occupy the established side-info slot. */
+#app .overlay-twitch-sidebar {
+  position: absolute;
+  left: 0;
+  top: 154px;
+  width: 286px;
+  max-height: 620px;
+  z-index: 30;
+}

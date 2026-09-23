@@ -12,7 +12,6 @@ import {
 } from '@bluebottle_gg/league-broadcast-client'
 import { handleImageError, handleImageLoad } from '@/utils/imageUtils'
 import { LANE_LABELS } from '@/utils/laneOrder'
-import broadcastLogo from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
 import TopIcon from '@/assets/lane/top-placeholder-cropped.svg'
 import JungleIcon from '@/assets/lane/jgl-placeholder-cropped.svg'
 import MidIcon from '@/assets/lane/mid-placeholder-cropped.svg'
@@ -30,6 +29,7 @@ export interface DamageGraphPanelEntry {
   laneIndex?: number
   totalDamage: number
   damageByType?: { [key: string]: number }
+  died?: boolean
 }
 
 const props = withDefaults(
@@ -38,6 +38,8 @@ const props = withDefaults(
     entries: DamageGraphPanelEntry[]
     /** Changes when a new backend payload should replay the row animations. */
     renderKey?: string
+    sponsorLogo?: string
+    sponsorName?: string
   }>(),
   { renderKey: '' },
 )
@@ -127,16 +129,17 @@ const LEGEND = [
   <Transition name="damage-panel">
     <div v-if="visibleEntryCount" class="damage-panel" role="img" :aria-label="`${title} graph`">
       <header class="panel-header">
-        <span class="brand-marker" />
+        <span class="brand-marker" aria-hidden="true" />
         <h2>{{ title }}</h2>
+        <slot name="header-context" />
         <div v-if="showsDamageTypes" class="header-legend" aria-label="Damage types">
           <div v-for="item in LEGEND" :key="item.label" class="legend-item">
             <span class="legend-swatch" :style="{ background: item.color }" />
             <span class="legend-label">{{ item.label }}</span>
           </div>
         </div>
-        <span class="header-divider" />
-        <img :src="broadcastLogo" alt="League Broadcast" class="header-logo" />
+        <span v-if="sponsorLogo" class="header-divider" aria-hidden="true" />
+        <img v-if="sponsorLogo" :src="sponsorLogo" :alt="sponsorName || 'Sponsor'" class="header-logo" @error="handleImageError" @load="handleImageLoad" />
       </header>
 
       <div class="teams-row">
@@ -156,6 +159,7 @@ const LEGEND = [
             <img
               :src="client.getCacheUrl(entry.champion?.squareImg)"
               class="player-icon"
+              :class="{ dead: entry.died }"
               alt=""
               @error="handleImageError"
               @load="handleImageLoad"
@@ -184,7 +188,7 @@ const LEGEND = [
 </template>
 
 <style lang="css" scoped>
-/* Bottom-flush broadcast card: same surface, border, accent wash and sheen as
+/* Bottom-flush broadcast card: same surface, border, magenta wash and sheen as
    the side info panel and gold graph title bar, squared off on the screen edge
    per the radius scale in style.css. */
 .damage-panel {
@@ -194,20 +198,18 @@ const LEGEND = [
   flex-direction: column;
   overflow: hidden;
   pointer-events: none;
-  /* Match the production display font. */
-  font-family: 'Bebas Neue';
+  font-family: inherit;
   font-variant-numeric: tabular-nums;
   color: white;
   background:
     linear-gradient(
       115deg,
-      color-mix(in oklab, var(--broadcast-accent) 13%, transparent),
+      color-mix(in oklab, var(--border-color) 13%, transparent),
       transparent 46%
     ),
-    linear-gradient(180deg, rgb(255 255 255 / 0.05), transparent 26%), rgb(4 5 8 / 0.94);
+    linear-gradient(180deg, rgb(255 255 255 / 0.05), transparent 26%), #040508;
   border: var(--brand-border-width) solid var(--border-color);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  box-shadow: 0 0 18px color-mix(in oklab, var(--broadcast-accent) 32%, transparent);
 }
 
 .panel-header {
@@ -222,14 +224,14 @@ const LEGEND = [
   background:
     linear-gradient(
       115deg,
-      color-mix(in oklab, var(--broadcast-accent) 26%, transparent),
+      color-mix(in oklab, var(--border-color) 26%, transparent),
       transparent 56%
     ),
     #1a1d24;
-  border-bottom: 2px solid var(--border-color);
+  border-bottom: var(--brand-border-width) solid var(--border-color);
 }
 
-/* Brand sheen: the same slow accent sweep the other panels run */
+/* Brand sheen: the same slow magenta sweep the other panels run */
 .panel-header::after {
   content: '';
   position: absolute;
@@ -241,7 +243,7 @@ const LEGEND = [
   background: linear-gradient(
     100deg,
     transparent,
-    color-mix(in oklab, var(--broadcast-accent) 20%, transparent 55%),
+    color-mix(in oklab, var(--border-color) 20%, transparent 55%),
     transparent
   );
   animation: damage-header-sheen 16s ease-in-out infinite;
@@ -266,14 +268,13 @@ const LEGEND = [
   width: 5px;
   height: 22px;
   flex-shrink: 0;
-  background: var(--broadcast-accent);
-  box-shadow: 0 0 10px color-mix(in oklab, var(--broadcast-accent) 65%, transparent);
+  background: var(--border-color);
 }
 
 h2 {
   margin: 0;
   color: white;
-  font-size: 22px;
+  font-size: 23px;
   font-weight: 900;
   line-height: 1;
   text-transform: uppercase;
@@ -320,8 +321,8 @@ h2 {
 }
 
 .header-logo {
-  width: 84px;
-  max-height: 24px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
 }
 
@@ -389,6 +390,12 @@ h2 {
   background: #101318;
   border: 1px solid var(--team-color-soft);
   border-radius: var(--radius-sm);
+  transition: filter 250ms ease, opacity 250ms ease;
+}
+
+.player-icon.dead {
+  filter: grayscale(1);
+  opacity: 0.48;
 }
 
 /* Lane glyphs are never mirrored with the row — top and bot read by their own
@@ -401,10 +408,10 @@ h2 {
 }
 
 .player-name {
-  width: 96px;
+  width: 104px;
   flex-shrink: 0;
   overflow: hidden;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 800;
   line-height: 1;
   text-overflow: ellipsis;
@@ -435,12 +442,13 @@ h2 {
 .bar-fill {
   height: 100%;
   border-radius: var(--radius-xs);
+  transition: width 350ms ease;
 }
 
 .damage-value {
-  width: 46px;
+  width: 58px;
   flex-shrink: 0;
-  font-size: 13px;
+  font-size: 21px;
   font-weight: 900;
   line-height: 1;
 }
@@ -593,7 +601,9 @@ h2 {
   }
 
   .damage-panel-enter-active,
-  .damage-panel-leave-active {
+  .damage-panel-leave-active,
+  .player-icon,
+  .bar-fill {
     transition: none;
   }
 }

@@ -274,14 +274,10 @@ const resourceColor = computed(() => {
   font-weight: 800;
 }
 
-/* Bottom-anchored labels over the champion icon. `line-height: 1` trims the
-   half-leading + descender space that would otherwise push the digits below the
-   icon cell's `overflow: hidden` edge — at 12px the stacks line box has exactly
-   5px under the baseline, so the old `bottom: -5px` sliced the digits off along
-   the baseline. Worst in the last row, where that clip edge is the screen edge. */
+/* Keep glyph ink inside the icon cell's clipped, 2px padded edge. */
 .level-text {
   position: absolute;
-  bottom: 0;
+  bottom: 2px;
   line-height: 1;
   text-shadow: 0 0 2px rgba(0, 0, 0, 1);
   z-index: 10;

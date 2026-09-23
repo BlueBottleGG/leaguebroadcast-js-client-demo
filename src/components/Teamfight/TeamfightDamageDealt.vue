@@ -5,6 +5,8 @@ import { playerDisplayName } from '@/utils/playerDisplayName'
 import { laneIndexFromRole } from '@/utils/laneOrder'
 import DamageGraphPanel, { type DamageGraphPanelEntry } from './DamageGraphPanel.vue'
 
+defineProps<{ sponsorLogo?: string; sponsorName?: string }>()
+
 const data = useIngameSelector((state) => state.gameData.damageGraph)
 
 const entries = computed<DamageGraphPanelEntry[]>(() =>
@@ -21,5 +23,5 @@ const entries = computed<DamageGraphPanelEntry[]>(() =>
 </script>
 
 <template>
-  <DamageGraphPanel title="Damage Dealt" :entries="entries" />
+  <DamageGraphPanel title="Damage Dealt" :entries="entries" :sponsor-logo="sponsorLogo" :sponsor-name="sponsorName" />
 </template>

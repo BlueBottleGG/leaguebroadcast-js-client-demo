@@ -1,18 +1,15 @@
 <script setup lang="ts">
 import { useIngameSelector } from '@/composables/useIngame'
-import { getCameraTestConfig } from '@/composables/usePlayerCameraRoster'
 import { Team } from '@bluebottle_gg/league-broadcast-client'
 import PlayerCamera from './PlayerCamera.vue'
 
 const scoreboard = useIngameSelector((s) => s.gameData.scoreboardBottom)
 const teamfight = useIngameSelector((s) => s.gameData.teamfightDamageOverview)
-// ?camtest=<prefix> forces the cameras visible so they can be tested without live game data.
-const forceShow = getCameraTestConfig() !== null
 </script>
 
 <template>
   <Transition name="slide-down">
-    <div v-show="scoreboard || teamfight || forceShow" class="camera-container">
+    <div v-show="scoreboard || teamfight" class="camera-container">
       <PlayerCamera
         show
         :team="Team.Order"

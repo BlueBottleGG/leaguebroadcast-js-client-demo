@@ -11,7 +11,6 @@ node_modules
 .DS_Store
 dist
 dist-ssr
-coverage
 *.local
 
 # Editor directories and files
@@ -28,13 +27,6 @@ coverage
 
 .eslintcache
 
-# Cypress
-/cypress/videos/
-/cypress/screenshots/
-
-# Vitest
-__screenshots__/
-
 # Local client source files (brand guidelines and uncurated source assets)
 /*_Assets/
 
@@ -43,6 +35,3 @@ __screenshots__/
 ai-memory.db
 ai-memory.db-shm
 ai-memory.db-wal
-
-# Local champion GLB fixtures for the devtools VFX harness
-public/devtools/*.glb

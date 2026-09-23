@@ -11,7 +11,7 @@ Not all graphics are available in every LeagueBroadcast tier. The table below sh
 | Tier | What's unlocked |
 |---|---|
 | **Free** | Scoreboard, Player Scoreboard, Objective Timers, Minimap Frame, L-Frame |
-| **Basic** | Everything above, plus: Gold Graph, Kill Feed, Skin Display, Smite Reaction, Player Cameras, Compact Teamfight |
+| **Basic** | Everything above, plus: Gold Graph, Gold Efficiency, Damage Composition, Damage Flow, Objective Finishing Sequence, Objective Damage, Incoming/Outgoing Damage, Kill Participation, Twitch interactions, Kill Feed, Skin Display, Smite Reaction, Player Cameras, Compact Teamfight |
 
 > **Example:** The Gold Graph component requires **Basic tier** or higher. If you are on the Free tier it will not receive any data from the server.
 
@@ -32,6 +32,14 @@ Not all graphics are available in every LeagueBroadcast tier. The table below sh
 | Component | Description |
 |---|---|
 | **Gold Graph** | SVG gold-difference chart with blue/red filled regions, available in the original full-width layout or a graph-only player-scoreboard layout |
+| **Gold Efficiency** | Live champion damage / total gold earned ratios shown as lane-order matchups, with team-ranking fallback when roster data is unavailable; enable the backend Gold Efficiency toggle |
+| **Damage Composition** | Cumulative champion-only physical, magic, and true damage: a per-team overview for 3s, then a ~1s collapse to zero and per-player bar growth with animated number movement |
+| **Damage Flow** | Directed champion damage in four app-selected views (`view` 0–3), with `attackingTeam` 1/2 and optional raw `highlightPlayerName` presentation fields |
+| **Objective Damage** | Team shares and physical, magic, and true damage for the selected objective |
+| **Incoming/Outgoing Damage** | Sidebar breakdowns of damage taken and dealt, including spell details |
+| **Kill Participation** | Team kill involvement for each player |
+| **Twitch interactions** | Live poll, prediction, and chat-vote sidebars with results |
+| **Objective Finishing Sequence** | Final objective hits with early smites, reaction time, and killer-team damage |
 | **Kill Feed** | Animated kill-feed showing up to 5 recent kills with champion icons |
 | **Skin Display** | Side panels displaying each team's current champion skins by role |
 | **Smite Reaction** | Reaction-time graphic triggered on smite events |
@@ -96,9 +104,7 @@ Debug query params work on any route:
 - `?bg=dark` — use a flat dark development background. Any CSS color is accepted, and `bg=none` forces transparency. Dev builds only: it is a no-op in production, so a leftover `?bg=` in an OBS source URL can never paint over the game feed. The default is transparent.
 - `?backendport=<port>` — connect to a LeagueBroadcast server on a non-default port instead of `58869`.
 - `?gromp` — enable the special first-Gromp-kill announcer notification (hidden by default).
-- Element-specific params, e.g. `?camtest=demo` (dummy player cameras) and `?pgscreen=combined` (post-game screen) — the `/ingame/elements` index lists them all per element. Scene data itself comes from the backend: run it in its mocking mode to drive the champ-select / post-game / in-game overlays without a live match.
-
-The standalone mock-data harnesses (`powerplay-preview.html`, `goldgraph-preview.html`, `teamfight-preview.html`) still exist for working without a server; the element pages use the real client connection.
+- Element-specific params, e.g. `?pgscreen=combined` (post-game screen) — the `/ingame/elements` index lists them all per element. Scene data itself comes from the backend: run it in its mocking mode to drive the champ-select / post-game / in-game overlays without a live match.
 
 ### Changing the server address
 
@@ -228,24 +234,9 @@ client.onIngameEvents({
 });
 ```
 
-## Testing player cameras (VDO.Ninja)
+## Player cameras (VDO.Ninja)
 
-You can test the full 10-camera setup locally without asking anyone to start a camera. Chromium's fake-webcam flags feed a generated test pattern into real VDO.Ninja streams:
-
-```powershell
-# 1. Serve the app (dev server or a deployed build)
-npm run dev
-
-# 2. Publish 10 dummy camera streams (keeps a browser window open while testing)
-.\tools\start-dummy-cameras.ps1 -Count 10 -BaseUrl "http://localhost:5173"
-```
-
-The script prints two URLs to view the streams:
-
-- **Standalone grid** (`public/camera-test/viewer.html`) — views all streams with the exact URL parameters the overlay uses, without needing the backend. Load it in a browser or an OBS browser source to isolate VDO.Ninja/OBS problems from overlay problems. A green dot per tile shows connection state.
-- **The overlay itself** with `?camtest=<prefix>&camcount=10` appended — rewires every player's `videoStreamUrl` to the dummy streams and forces the camera strip visible. Works with a live/mock game (player names come from the roster) and also without a backend (synthesizes a CAM 1–10 roster).
-
-Use `-Headless` to publish without a visible window, `-Prefix myTest` to pick your own stream IDs (the default is randomized to avoid collisions on the public VDO.Ninja signalling), and `-Server` for a self-hosted VDO.Ninja.
+Develop camera layouts against the real overlay with LeagueBroadcast running in mocking mode. Configure the mock roster's `videoStreamUrl` and `iconUri` values to exercise feeds and fallbacks.
 
 ### OBS browser source checklist
 
@@ -260,7 +251,7 @@ Per [VDO.Ninja's OBS guidance](https://docs.vdo.ninja/common-errors-and-known-is
 
 VDO.Ninja's stock ICE config (several STUN servers + geo-selected TURN servers) exceeds Chromium's 5-server threshold, which slows candidate discovery — multiplied across 10 camera connections. The overlay counters this by pinning a single STUN server (`&stun=stun:stun.l.google.com:19302`) on every view link.
 
-If players and the OBS machine are on the same network (venue LAN) or can otherwise reach each other directly, add **`?camturn=off`** to the overlay URL (and to `viewer.html`) — it appends `&turn=false` so connections skip TURN relays entirely, giving the fastest possible discovery. Don't use it when remote players sit behind strict NATs/firewalls: TURN is the fallback that makes those connections work at all. For recurring remote productions, a [self-hosted TURN server](https://docs.vdo.ninja/advanced-settings/turn-and-stun-parameters/turn) configured directly on the players' stream URLs beats the shared public ones.
+If players and the OBS machine are on the same network (venue LAN) or can otherwise reach each other directly, add **`?camturn=off`** to the overlay URL — it appends `&turn=false` so connections skip TURN relays entirely, giving the fastest possible discovery. Don't use it when remote players sit behind strict NATs/firewalls: TURN is the fallback that makes those connections work at all. For recurring remote productions, a [self-hosted TURN server](https://docs.vdo.ninja/advanced-settings/turn-and-stun-parameters/turn) configured directly on the players' stream URLs beats the shared public ones.
 
 ### Camera delay (syncing cameras with a delayed program feed)
 
@@ -283,8 +274,62 @@ usual "buffering over ~3s hurts audio sync" caveat doesn't apply here.
 > `&camdelay` then drives the larger custom buffer. The overlay logs a console warning when
 > `camdelay` is set above 4s.
 
-`camdelay` also works on the standalone `viewer.html` test grid, so you can dial in the
-delay against the dummy cameras before going live.
+### Objective Finishing Sequence
+
+`/ingame/element/objective-recap` shows the objective's finishing sequence from
+`gameData.damageRecap`. Smite within five seconds of the killing blow remains
+visible even when it falls outside the final five hits; a dashed connector marks
+omitted hits. The killing blow identifies the killer team for its damage and
+percentage share. Damage values use damage-type colors; reaction time retains
+negative values for an early smite. Usable objective recap data takes priority over
+other bottom analysis graphics and clearing it restores them.
+
+The component is shared by EEC and unbranded; EEC supplies sponsor props. Develop on
+`/ingame/element/objective-recap` with backend mock data.
+
+### Objective Damage per Team
+
+`/ingame/element/objective-damage-per-team` shows the selected objective's final
+engagement in the left sidebar. The outer blue/red rim shows team contribution;
+each team's inner arc splits physical, magic, and true damage using the shared
+damage-type colors. Totals and team shares come from the final `objectiveDps.samples`
+entry. Type totals come from `objectiveDps.blueDamageByType` and
+`objectiveDps.redDamageByType`, added to the LeagueBroadcast backend alongside this
+graphic. Older servers retain team totals, with a neutral inner arc and an
+unavailable label when type data is missing or does not reconcile.
+
+Twitch interactions retain priority. This graphic takes priority over Damage Sidebar and Side Info, waiting for an
+occupied damage sidebar to exit before entering. Clearing restores the previous
+sidebar after its exit completes. Both skins share the component; EEC supplies
+its sponsor. Slide, ring and content transitions respect reduced motion.
+
+Develop on `/ingame/element/objective-damage-per-team` with backend mock data covering
+long names, missing/partial types, one-sided/zero damage, clearing and replacement
+objectives.
+
+### Twitch interactions
+
+Enable the backend's Twitch Poll, Prediction, or Chat Vote graphic, or use
+`/ingame/element/twitch-poll`, `/ingame/element/twitch-prediction`, or
+`/ingame/element/twitch-chat-vote` as a dedicated 1920×1080 OBS source. The shared
+286px sidebar occupies the existing side-info slot at x0/y154. Two short options
+use a compact stack roughly 340px tall; longer questions, labels, or additional
+options increase its height. It inherits the EEC or unbranded theme and holds the
+sidebar until its exit finishes. Priority
+is prediction, then poll, then chat vote, ahead of damage and side-info panels.
+
+The exit highlights confirmed winners: final poll/chat vote leaders (including ties)
+and the prediction's actual winning outcome, even when it received fewer points.
+The winning row moves into the result position after a short highlight, accompanied
+by a compact result badge. Panel height stays stable through the result and exit,
+with speed-line trails on the way out. Reduced motion uses fades.
+Operator hide and transport failures do not crown a winner. Runtime requires the
+LeagueBroadcast backend update that retains completed Twitch snapshots; older
+backends may clear the result before the overlay can read it.
+
+Develop on the standalone Twitch element routes with backend mock data covering poll,
+prediction and chat states plus long, zero, tied, missing-winner, canceled and clearing
+cases.
 
 ## Building for production
 

@@ -1,0 +1,11 @@
+# Broadcast graphics quick start
+
+Use this established system; skip broad style/token research unless the user requests a redesign. Paths are relative to either worktree.
+
+- **Reuse:** Start from `src/components/GoldEfficiency/GoldEfficiency.vue` for bottom comparisons or `src/components/SideInfoPage/SideInfoPage.vue` for sidebars. Keep component/data-helper code identical in EEC and unbranded; vary theme tokens and optional sponsor props. These are separate worktrees, not a shared runtime package.
+- **Theme:** `src/style.css` owns tokens; `src/App.vue` owns global typography. Inherit the font: EEC = TeleNeoWeb only; unbranded = Bebas Neue/global fallback stack. EEC accent = `--brand-magenta` (#e20074); unbranded = `--broadcast-accent` (#8175ff). Shared components use `--border-color` and `--brand-border-width` (2px).
+- **Surfaces:** `--surface-strong/soft` = black at 65%/35%. Takeover panels need an opaque backing so underlying graphics cannot bleed through. Reference body/header: #040508/#1a1d24. `--radius-xs/sm/md/lg` = 2/4/6/8px; screen-edge corners stay square.
+- **Type/color:** White text, uppercase headings, tabular numbers. Bottom reference: 46px header, 23px title, 16px names, 21px values. Use `--blue-team-color` / `--red-team-color` for team identity, not good/bad performance. Pass sponsor artwork from the branded caller.
+- **Placement:** Transparent 1920×1080 OBS canvas. `src/views/overlay-layout.css` owns positioning. Bottom `overlay-teamfight-panels`: x461/y820, 998×260, z-index 20; leave root width automatic with left/right insets. Sidebar `overlay-side-info`: x0/y154, 286px wide. Preserve minimap/camera space.
+- **Wire/data:** Register in `OverlayView.vue` and `elements.ts` for `/ingame/element/<slug>`. Reuse `useIngameSelector`, `playerDisplayName`, `getCacheUrl`, and image-error helpers. Verify the new metric's actual formula. Join lanes by exact (team, raw name) against ordered `scoreboardBottom`; missing metrics must not shift rows. Gold Efficiency's `role` is unreliable and `goldSpent` actually means gold earned.
+- **Check:** Gate on usable data; define priority for overlapping graphics. Animate transforms; respect reduced motion. Run `npm run build` in both worktrees, and inspect the `/ingame/element/<slug>` route at 1920×1080 against backend mock data with long names, missing/zero data, and clearing.

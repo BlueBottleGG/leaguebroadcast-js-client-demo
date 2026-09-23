@@ -19,6 +19,9 @@ import ObjectivePowerPlayContainer from '@/components/ObjectivePowerPlay/Objecti
 import SkinDisplay from '@/components/SidePanel/SkinDisplay.vue'
 import RuneDisplay from '@/components/SidePanel/RuneDisplay.vue'
 import SideInfoPage from '@/components/SideInfoPage/SideInfoPage.vue'
+import DamageSidebar from '@/components/DamageSidebar/DamageSidebar.vue'
+import TwitchSidebar from '@/components/TwitchSidebar/TwitchSidebar.vue'
+import leagueBroadcastLogo from '@/assets/leaguebroadcast-logo_text-color-bright_outline.png'
 import SmiteReaction from '@/components/SmiteReaction/SmiteReaction.vue'
 import KillFeed from '@/components/KillFeed/KillFeed.vue'
 import Announcer from '@/components/Announcer/Announcer.vue'
@@ -26,6 +29,12 @@ import ChampionSelectScene from '@/components/ChampionSelect/ChampionSelectScene
 import PostGameScene from '@/components/PostGame/PostGameScene.vue'
 import PlayerCameras from '@/components/PlayerCameras/PlayerCameras.vue'
 import GoldGraph from '@/components/GoldGraph/GoldGraph.vue'
+import GoldEfficiency from '@/components/GoldEfficiency/GoldEfficiency.vue'
+import DamageComposition from '@/components/DamageComposition/DamageComposition.vue'
+import KillParticipation from '@/components/KillParticipation/KillParticipation.vue'
+import DamageFlow from '@/components/DamageFlow/DamageFlow.vue'
+import ObjectiveRecap from '@/components/ObjectiveRecap/ObjectiveRecap.vue'
+import ObjectiveDamage from '@/components/ObjectiveDamage/ObjectiveDamage.vue'
 import CompactTeamfight from '@/components/Teamfight/CompactTeamfight.vue'
 import TeamfightPanels from '@/components/Teamfight/TeamfightPanels.vue'
 import ConnectionStatus from '@/components/Debug/ConnectionStatus.vue'
@@ -126,6 +135,53 @@ export const elements: ElementDef[] = [
     parts: [{ component: SideInfoPage, class: 'overlay-side-info' }],
   },
   {
+    slug: 'damage-recap',
+    title: 'Incoming Damage / Death Recap',
+    parts: [
+      {
+        component: DamageSidebar,
+        class: 'overlay-side-info',
+        props: {
+          direction: 'incoming',
+          footerLogo: leagueBroadcastLogo,
+          footerName: 'League Broadcast',
+        },
+      },
+    ],
+  },
+  {
+    slug: 'damage-split',
+    title: 'Outgoing Damage Split',
+    parts: [
+      {
+        component: DamageSidebar,
+        class: 'overlay-side-info',
+        props: {
+          direction: 'outgoing',
+          footerLogo: leagueBroadcastLogo,
+          footerName: 'League Broadcast',
+        },
+      },
+    ],
+  },
+  {
+    slug: 'twitch-poll',
+    title: 'Twitch Poll',
+    parts: [{ component: TwitchSidebar, props: { kind: 'poll' }, class: 'overlay-twitch-sidebar' }],
+  },
+  {
+    slug: 'twitch-prediction',
+    title: 'Twitch Prediction',
+    parts: [
+      { component: TwitchSidebar, props: { kind: 'prediction' }, class: 'overlay-twitch-sidebar' },
+    ],
+  },
+  {
+    slug: 'twitch-chat-vote',
+    title: 'Twitch Chat Vote',
+    parts: [{ component: TwitchSidebar, props: { kind: 'chat' }, class: 'overlay-twitch-sidebar' }],
+  },
+  {
     slug: 'smite-reaction',
     title: 'Smite Reaction',
     parts: [{ component: SmiteReaction, class: 'overlay-smitereaction' }],
@@ -146,9 +202,6 @@ export const elements: ElementDef[] = [
     title: 'Player Cameras',
     parts: [{ component: PlayerCameras, class: 'overlay-playercameras' }],
     demoParams: [
-      'camtest=<prefix> — dummy vdo.ninja streams instead of the real roster',
-      'camcount=<n>, camserver=<url> — options for camtest',
-      'camicon=<url> — fallback portrait for dummy players (full http URL)',
       'camturn=<mode> — TURN relay override',
       'camdelay=<seconds> — viewer-side playout delay to sync cameras with a delayed program feed',
     ],
@@ -166,6 +219,46 @@ export const elements: ElementDef[] = [
         component: GoldGraph,
         props: { variant: 'player-scoreboard' },
         class: 'overlay-player-scoreboard-gold-graph',
+      },
+    ],
+  },
+  {
+    slug: 'kill-participation',
+    title: 'Kill Participation / Best Duo',
+    parts: [
+      {
+        component: KillParticipation,
+        class: 'overlay-teamfight-panels',
+      },
+    ],
+  },
+  {
+    slug: 'gold-efficiency',
+    title: 'Gold Efficiency',
+    parts: [{ component: GoldEfficiency, class: 'overlay-teamfight-panels' }],
+  },
+  {
+    slug: 'damage-composition',
+    title: 'Damage Composition',
+    parts: [{ component: DamageComposition, class: 'overlay-teamfight-panels' }],
+  },
+  {
+    slug: 'damage-flow',
+    title: 'Damage Flow',
+    parts: [{ component: DamageFlow, class: 'overlay-teamfight-panels' }],
+  },
+  {
+    slug: 'objective-damage-per-team',
+    title: 'Objective Damage per Team',
+    parts: [{ component: ObjectiveDamage, class: 'overlay-side-info' }],
+  },
+  {
+    slug: 'objective-recap',
+    title: 'Objective Finishing Sequence',
+    parts: [
+      {
+        component: ObjectiveRecap,
+        class: 'overlay-teamfight-panels',
       },
     ],
   },

@@ -17,8 +17,7 @@
     padding: 0;
   }
 
-  /* Theme tokens (team colors, project accent, surface scrims) live in style.css
-     so the dev preview entries share them. */
+  /* Theme tokens (team colors, project accent, surface scrims) live in style.css. */
 }
 
 html,

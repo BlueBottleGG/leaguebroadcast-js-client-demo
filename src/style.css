@@ -22,7 +22,6 @@
 }
 
 /* --- Shared theme tokens -------------------------------------------------
-   Single source of truth for every entry point (main app + dev previews).
    Declared on * (not :root) so they pierce into scoped-style components
    the same way the previous App.vue block did. */
 * {

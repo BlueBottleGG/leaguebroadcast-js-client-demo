@@ -15,11 +15,7 @@ const bg = computed(() => {
   // A leftover development parameter must never paint over a production feed.
   if (!import.meta.env.DEV) return ''
 
-  // Route queries are canonical. Keep the direct location fallback for preview
-  // harnesses that mount this component without Vue Router owning the query.
-  const fromRoute = typeof route.query.bg === 'string' ? route.query.bg : ''
-  const fromSearch = new URLSearchParams(window.location.search).get('bg') ?? ''
-  const param = fromRoute || fromSearch
+  const param = typeof route.query.bg === 'string' ? route.query.bg : ''
   return param === 'none' || param === 'off' ? '' : param
 })
 

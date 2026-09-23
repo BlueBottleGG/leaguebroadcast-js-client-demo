@@ -1,15 +1,15 @@
 <script setup lang="ts">
+import { useIngameSelector } from '@/composables/useIngame'
 import TeamfightRecap from './TeamfightRecap.vue'
 import TeamfightDamageDealt from './TeamfightDamageDealt.vue'
+
+const hasTimeline = useIngameSelector((state) => !!state.gameData.teamfightTimeline?.players?.length)
 </script>
 
 <template>
-  <!-- Backend-triggered damage panels stack in one centered column.
-       Centered via flex, not translateX(-50%) — the components animate transform
-       on enter/leave, which would clobber transform-based centering. -->
   <div class="teamfight-panels">
-    <TeamfightRecap />
-    <TeamfightDamageDealt />
+    <TeamfightRecap v-if="hasTimeline" />
+    <TeamfightDamageDealt v-else />
   </div>
 </template>
 
@@ -18,7 +18,6 @@ import TeamfightDamageDealt from './TeamfightDamageDealt.vue'
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
   pointer-events: none;
 }
 </style>

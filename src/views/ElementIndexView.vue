@@ -13,10 +13,7 @@ import { elements } from './elements'
     </p>
     <p class="hint">
       <RouterLink to="/?bg=dark">Full broadcast</RouterLink> ·
-      <RouterLink to="/ingame?bg=dark">ingame overlay</RouterLink> · standalone harnesses with mock
-      data: <a href="/powerplay-preview.html">powerplay-preview</a>,
-      <a href="/goldgraph-preview.html">goldgraph-preview</a>,
-      <a href="/teamfight-preview.html">teamfight-preview</a>
+      <RouterLink to="/ingame?bg=dark">ingame overlay</RouterLink>
     </p>
 
     <ul class="elements">
