@@ -22,7 +22,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
     "@tsconfig/node24": "^24.0.4",
-    "@types/node": "^24.12.0",
+    "@types/node": "^26.6.5",
     "@types/three": "^0.185.0",
     "@vitejs/plugin-vue": "^6.0.5",
     "@vue/tsconfig": "^0.9.1",
@@ -37,6 +37,6 @@
     "vue-tsc": "^3.2.6"
   },
   "engines": {
-    "node": "^20.19.0 || >=22.12.0"
+    "node": ">=26.12.1"
   }
 }
