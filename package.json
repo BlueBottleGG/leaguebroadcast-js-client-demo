@@ -12,7 +12,7 @@
     "format": "oxfmt src/"
   },
   "dependencies": {
-    "@bluebottle_gg/league-broadcast-client": "1.13.0",
+    "@bluebottle_gg/league-broadcast-client": "1.14.0",
     "pinia": "^3.0.4",
     "three": "^0.185.1",
     "vite-plugin-webfont-dl": "^3.12.0",
