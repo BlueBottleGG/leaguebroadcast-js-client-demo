@@ -96,7 +96,6 @@ onUnmounted(() => {
 
 <template>
   <div class="bounty-band" :class="mirror ? 'red' : 'blue'">
-    <span class="label">Bounty</span>
     <span v-if="countdown" class="countdown">{{ countdown }}</span>
     <TransitionGroup name="bounty-entry">
       <span
@@ -145,14 +144,6 @@ onUnmounted(() => {
     color-mix(in oklab, var(--side) 45%, var(--surface-strong)) 0%,
     var(--surface-strong) 55%
   );
-}
-
-.label {
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--side);
 }
 
 .countdown,
