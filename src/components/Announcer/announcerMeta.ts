@@ -240,6 +240,11 @@ export const ANNOUNCEMENT_META: Record<AnnouncementTypeName, AnnouncementMeta> =
       detail: paramDisplayName(src) ? `${paramDisplayName(src)} has destroyed a turret` : undefined,
     }),
   },
+  ObjectiveBountyClaimed: {
+    ...MINOR,
+    priority: 42,
+    text: () => ({ detail: 'Objective bounty claimed' }),
+  },
   TowerKill: {
     ...MINOR,
     priority: 40,

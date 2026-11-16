@@ -39,6 +39,17 @@ const SWAP_GAP_MS = 300
 /** Minimum time between two branded banners. */
 const BRAND_COOLDOWN_MS = 90_000
 
+function withBounty(
+  type: string,
+  text: ReturnType<AnnouncementMeta['text']>,
+  gold: number | undefined,
+): ReturnType<AnnouncementMeta['text']> {
+  if (!gold) return text
+  if (type === 'ObjectiveBountyClaimed') return { ...text, detail: `${text.detail} +${gold}` }
+  if (text.title) return { ...text, eyebrow: text.eyebrow ?? `Bounty claimed +${gold}` }
+  return { ...text, detail: `${text.detail} · Bounty +${gold}` }
+}
+
 function isScuttleKill(type: string): boolean {
   return /^Scuttle(?:Crab)?Kill$/i.test(type)
 }
@@ -83,7 +94,7 @@ export function useAnnouncerQueue(options?: {
   function toActive(item: QueuedItem, branded: boolean): ActiveAnnouncement {
     const src = item.event.source
     const tgt = item.event.target
-    const text = item.meta.text(src, tgt)
+    const text = withBounty(item.type, item.meta.text(src, tgt), item.event.bountyGold)
     return {
       id: item.id,
       type: item.type,
@@ -147,8 +158,11 @@ export function useAnnouncerQueue(options?: {
   }
 
   function enqueue(event: announcerEvent) {
-    const type = String(event.type)
-    if (isScuttleKill(type)) return
+    let type = String(event.type)
+    if (isScuttleKill(type) || !ANNOUNCEMENT_META[type]) {
+      if (!event.bountyGold) return
+      type = 'ObjectiveBountyClaimed'
+    }
 
     const meta = ANNOUNCEMENT_META[type]
     if (!meta) return

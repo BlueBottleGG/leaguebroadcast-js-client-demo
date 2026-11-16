@@ -51,6 +51,8 @@ interface StatRow {
 }
 
 const kda = (t: postGameTeamOverview) => `${t.kills}/${t.deaths}/${t.assists}`
+const bountyText = (t: postGameTeamOverview) =>
+  t.objectiveBounties ? `${t.objectiveBounties} (+${formatDamage(t.objectiveBountyGold)})` : '0'
 
 // Simple numeric rows rendered above and below the special "Drakes" icon row.
 const topRows = computed<StatRow[]>(() => {
@@ -106,6 +108,13 @@ const bottomRows = computed<StatRow[]>(() => {
       red: String(r.grubs),
       blueRaw: b.grubs,
       redRaw: r.grubs,
+    },
+    {
+      label: 'Objective Bounties',
+      blue: bountyText(b),
+      red: bountyText(r),
+      blueRaw: b.objectiveBountyGold,
+      redRaw: r.objectiveBountyGold,
     },
   ]
 })

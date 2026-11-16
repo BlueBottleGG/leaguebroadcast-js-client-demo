@@ -4,6 +4,7 @@ import { useIngameSelector } from '@/composables/useIngame'
 import TeamRow from './TeamRow.vue'
 import TeamObjectiveRow from './TeamObjectiveRow.vue'
 import DragonBuffBanner from './DragonBuffBanner.vue'
+import ObjectiveBountyBand from './ObjectiveBountyBand.vue'
 import { GameState } from '@bluebottle_gg/league-broadcast-client'
 import projectLogo from '@/assets/blue_bottle-logo-color-bright_outline.svg?url'
 
@@ -16,6 +17,11 @@ const red = computed(() => scoreboard.value?.teams[1])
 
 const bluePlayers = computed(() => players.value?.teams[0]?.players || [])
 const redPlayers = computed(() => players.value?.teams[1]?.players || [])
+
+const bountyTeamId = computed(() =>
+  blue.value?.objectiveBounty ? 1 : red.value?.objectiveBounty ? 2 : 0,
+)
+const bounty = computed(() => (bountyTeamId.value === 1 ? blue.value : red.value)?.objectiveBounty)
 
 const gameTime = computed(() => {
   if (!scoreboard.value) return '00:00'
@@ -46,6 +52,18 @@ const gameTime = computed(() => {
           />
         </div>
       </div>
+      <Transition name="bounty-slot">
+        <div v-if="bounty" class="bounty-slot">
+          <div class="bounty-slot-inner">
+            <ObjectiveBountyBand
+              :key="bountyTeamId"
+              :bounty="bounty"
+              :team-id="bountyTeamId"
+              :game-time="scoreboard.gameTime"
+            />
+          </div>
+        </div>
+      </Transition>
       <div class="row-clip">
         <div class="bottom-row">
           <TeamObjectiveRow :team="blue" :players="bluePlayers" :is-mocking="isMocking" />
@@ -70,6 +88,44 @@ const gameTime = computed(() => {
 
 .row-clip {
   overflow: hidden;
+}
+
+.bounty-slot {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.bounty-slot-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.bounty-slot-enter-active,
+.bounty-slot-leave-active,
+.bounty-slot-enter-active .bounty-band,
+.bounty-slot-leave-active .bounty-band {
+  transition:
+    grid-template-rows 350ms ease,
+    transform 350ms ease;
+}
+
+.bounty-slot-enter-from,
+.bounty-slot-leave-to {
+  grid-template-rows: 0fr;
+}
+
+.bounty-slot-enter-from .bounty-band,
+.bounty-slot-leave-to .bounty-band {
+  transform: translateY(-100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bounty-slot-enter-active,
+  .bounty-slot-leave-active,
+  .bounty-slot-enter-active .bounty-band,
+  .bounty-slot-leave-active .bounty-band {
+    transition: none;
+  }
 }
 
 /* Enter: top row first, bottom row waits for top to finish */
